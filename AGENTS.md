@@ -11,3 +11,25 @@ Objective: turn a photographed sketch into manually traced, editable millimetre 
 - Development: `npm ci`, `npm run dev`. Production smoke check: `npm run build`, `npm run preview`, visit `/napkin3d/`.
 - For interaction changes, smoke-test photo import, draw/select/move/resize, numeric editing, calibration, undo/redo, reload persistence and export at a mobile viewport. Report real-device checks separately from automated checks.
 - Explicitly deferred: CV, OCR, AI sketch interpretation, constraint solver, boolean CAD, arbitrary closed line profiles, holes, STEP, DXF, 3MF, OBJ, PDF, cloud sync and collaboration.
+
+## Operating protocol
+
+Before starting any development block:
+
+- Read `STATUS.md`.
+- Read the relevant project documentation.
+- Confirm the current branch. Experimental development happens on `lab`; never work directly on `main` unless explicitly approved.
+
+After completing any meaningful development block:
+
+- Run the appropriate tests and build checks.
+- Update `STATUS.md` with the real resulting state.
+- Record what changed, what was verified, known problems, pending decisions, and the recommended next action.
+- Never mark something as working unless it has actually been implemented and verified.
+- Preserve important architectural and product decisions from previous `STATUS.md` updates.
+
+If a decision materially affects product behavior, architecture, data model, security, external services, or user experience:
+
+- Stop before making an arbitrary decision.
+- Record it under `Decisions pending` in `STATUS.md`.
+- Explain the options clearly to the user and request a decision.

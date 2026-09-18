@@ -8,6 +8,15 @@ test("mobile workflow on the production Pages path", async ({ page }) => {
     ),
   );
   await page.goto("/napkin3d/");
+  await expect(
+    page.getByRole("button", { name: "PROYECTO AUTOMÁTICO" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "PROYECTO AUTOMÁTICO" }).click();
+  await expect(page.getByRole("heading", { name: "NUEVA PIEZA" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "HACER FOTO" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "ELEGIR FOTO" })).toBeVisible();
+  await page.getByRole("button", { name: "← Inicio" }).click();
+  await page.getByRole("button", { name: "PROYECTO MANUAL" }).click();
   await page.getByRole("button", { name: "Create your first project" }).click();
   await page.getByRole("button", { name: "+ Part", exact: true }).click();
   const svg = page.locator("svg.editor");
@@ -62,11 +71,19 @@ test("mobile workflow on the production Pages path", async ({ page }) => {
   await expect(page.getByRole("status")).toHaveText("Saved on this device");
   await page.screenshot({ path: "test-results/mobile-3d.png", fullPage: true });
   await page.reload();
+  await page.getByRole("button", { name: "PROYECTO MANUAL" }).click();
   await page.getByRole("button", { name: "My first project" }).click();
   await page
     .getByRole("button", { name: "New part 1 entities · 8 mm deep" })
     .click();
   await expect(page.locator("svg.editor image")).toHaveCount(1);
+  await page.getByRole("button", { name: "Inicio", exact: true }).click();
+  await page.getByRole("button", { name: "PROYECTO MANUAL" }).click();
+  await page.getByRole("button", { name: "PROJECT", exact: true }).click();
+  await expect(page.getByRole("button", { name: "My first project" })).toBeVisible();
+  await page
+    .getByRole("button", { name: "New part 1 entities · 8 mm deep" })
+    .click();
   await page
     .locator(".properties select")
     .selectOption({ label: "1. rectangle" });
@@ -87,6 +104,7 @@ test("touch drawing, moving, resizing and panning", async ({
 }) => {
   page.on("dialog", (d) => d.accept(d.defaultValue()));
   await page.goto("/napkin3d/");
+  await page.getByRole("button", { name: "PROYECTO MANUAL" }).click();
   await page.getByRole("button", { name: "Create your first project" }).click();
   await page.getByRole("button", { name: "+ Part", exact: true }).click();
   const svg = page.locator("svg.editor");

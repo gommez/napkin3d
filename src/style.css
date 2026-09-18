@@ -109,6 +109,69 @@ nav button {
 main {
   padding: 18px 0;
 }
+.entry-screen {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 36px;
+  max-width: 520px;
+  margin: auto;
+  padding: 32px 0;
+}
+.entry-identity h1 {
+  font-size: 42px;
+  letter-spacing: -1.8px;
+  margin: 0;
+}
+.entry-identity p {
+  color: #62766e;
+  margin: 8px 0 0;
+}
+.entry-actions {
+  display: grid;
+  gap: 14px;
+}
+.entry-choice {
+  min-height: 92px;
+  padding: 18px 20px;
+  border-radius: 12px;
+  align-items: flex-start;
+  flex-direction: column;
+  text-align: left;
+}
+.entry-choice strong {
+  font-size: 16px;
+  letter-spacing: 0.5px;
+}
+.entry-choice span {
+  color: #62766e;
+  font-size: 14px;
+}
+.entry-choice-primary {
+  background: #163d38;
+  color: white;
+  border-color: #163d38;
+}
+.entry-choice-primary span {
+  color: #c3e0d6;
+}
+.automatic-screen {
+  justify-content: flex-start;
+  padding-top: 24px;
+}
+.automatic-screen h2 {
+  margin: 18px 0 0;
+}
+.back-button {
+  align-self: flex-start;
+  min-height: 44px;
+}
+.manual-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 h2 {
   font-size: 21px;
   margin: 4px 0 12px;
@@ -319,6 +382,10 @@ footer {
   }
   .section-title h2 {
     font-size: 19px;
+  }
+  .entry-screen {
+    padding-left: 8px;
+    padding-right: 8px;
   }
 }
 /* Avoid iOS focus zoom while entering precise dimensions. */

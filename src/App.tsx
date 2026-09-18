@@ -12,12 +12,14 @@ import { loadDocument, saveDocument } from "./storage";
 const Viewer = lazy(() => import("./Viewer"));
 const named = (question: string, initial = "") =>
   prompt(question, initial)?.trim();
+type AppMode = "HOME" | "AUTOMATIC" | "MANUAL";
 export default function App() {
   const [doc, setDoc] = useState<Document>({ version: 1, projects: [] }),
     [ready, setReady] = useState(false),
     [status, setStatus] = useState("Loading…"),
     [projectId, setProjectId] = useState(""),
     [partId, setPartId] = useState(""),
+    [appMode, setAppMode] = useState<AppMode>("HOME"),
     [mode, setMode] = useState("PROJECT");
   const queue = useRef(Promise.resolve());
   useEffect(() => {
@@ -112,29 +114,76 @@ export default function App() {
   }
   return (
     <div className="app">
-      <header>
-        <div>
-          <h1>
-            napkin<span>3d</span>
-          </h1>
-          <p>From sketch to something real.</p>
-        </div>
-        <small role="status">{status}</small>
-      </header>
-      <nav>
-        {["PROJECT", "2D", "3D"].map((v) => (
-          <button
-            key={v}
-            className={mode === v ? "active" : ""}
-            disabled={v !== "PROJECT" && !part}
-            onClick={() => setMode(v)}
-          >
-            {v}
+      {appMode === "HOME" ? (
+        <main className="entry-screen">
+          <div className="entry-identity">
+            <h1>
+              napkin<span>3d</span>
+            </h1>
+            <p>Del boceto a una pieza real.</p>
+          </div>
+          <div className="entry-actions">
+            <button
+              className="entry-choice entry-choice-primary"
+              onClick={() => setAppMode("AUTOMATIC")}
+            >
+              <strong>PROYECTO AUTOMÁTICO</strong>
+              <span>Foto → pieza 3D</span>
+            </button>
+            <button
+              className="entry-choice"
+              onClick={() => setAppMode("MANUAL")}
+            >
+              <strong>PROYECTO MANUAL</strong>
+              <span>Editor avanzado</span>
+            </button>
+          </div>
+        </main>
+      ) : appMode === "AUTOMATIC" ? (
+        <main className="entry-screen automatic-screen">
+          <button className="back-button" onClick={() => setAppMode("HOME")}>
+            ← Inicio
           </button>
-        ))}
-      </nav>
-      <main>
-        {mode === "PROJECT" ? (
+          <h2>NUEVA PIEZA</h2>
+          <div className="entry-actions">
+            <button className="entry-choice entry-choice-primary">
+              <strong>HACER FOTO</strong>
+            </button>
+            <button className="entry-choice">
+              <strong>ELEGIR FOTO</strong>
+            </button>
+          </div>
+        </main>
+      ) : (
+        <>
+          <header>
+            <div>
+              <h1>
+                napkin<span>3d</span>
+              </h1>
+              <p>From sketch to something real.</p>
+            </div>
+            <div className="manual-header-actions">
+              <button className="back-button" onClick={() => setAppMode("HOME")}>
+                Inicio
+              </button>
+              <small role="status">{status}</small>
+            </div>
+          </header>
+          <nav>
+            {["PROJECT", "2D", "3D"].map((v) => (
+              <button
+                key={v}
+                className={mode === v ? "active" : ""}
+                disabled={v !== "PROJECT" && !part}
+                onClick={() => setMode(v)}
+              >
+                {v}
+              </button>
+            ))}
+          </nav>
+          <main>
+            {mode === "PROJECT" ? (
           <>
             <div className="section-title">
               <h2>Your projects</h2>
@@ -288,41 +337,43 @@ export default function App() {
               </section>
             )}
           </>
-        ) : (
-          part && (
-            <>
-              <div className="section-title">
-                <div>
-                  <small>{project?.name}</small>
-                  <h2>{part.name}</h2>
-                </div>
-                <div className="toolbar">
-                  <button
-                    disabled={!part.entities.length}
-                    onClick={() => void exportFile("SVG")}
-                  >
-                    SVG ↓
-                  </button>
-                  <button
-                    disabled={!part.entities.some((e) => e.type !== "line")}
-                    onClick={() => void exportFile("STL")}
-                  >
-                    STL ↓
-                  </button>
-                </div>
-              </div>
-              {mode === "2D" ? (
-                <Editor key={part.id} part={part} onChange={updatePart} />
-              ) : (
-                <Suspense fallback={<p>Loading 3D viewer…</p>}>
-                  <Viewer part={part} onChange={updatePart} />
-                </Suspense>
-              )}
-            </>
-          )
-        )}
-      </main>
-      <footer>Made for rough sketches. Built in millimetres.</footer>
+            ) : (
+              part && (
+                <>
+                  <div className="section-title">
+                    <div>
+                      <small>{project?.name}</small>
+                      <h2>{part.name}</h2>
+                    </div>
+                    <div className="toolbar">
+                      <button
+                        disabled={!part.entities.length}
+                        onClick={() => void exportFile("SVG")}
+                      >
+                        SVG ↓
+                      </button>
+                      <button
+                        disabled={!part.entities.some((e) => e.type !== "line")}
+                        onClick={() => void exportFile("STL")}
+                      >
+                        STL ↓
+                      </button>
+                    </div>
+                  </div>
+                  {mode === "2D" ? (
+                    <Editor key={part.id} part={part} onChange={updatePart} />
+                  ) : (
+                    <Suspense fallback={<p>Loading 3D viewer…</p>}>
+                      <Viewer part={part} onChange={updatePart} />
+                    </Suspense>
+                  )}
+                </>
+              )
+            )}
+          </main>
+          <footer>Made for rough sketches. Built in millimetres.</footer>
+        </>
+      )}
     </div>
   );
 }
