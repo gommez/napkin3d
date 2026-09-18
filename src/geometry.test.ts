@@ -7,6 +7,9 @@ import {
   calibration,
   move,
   newPart,
+  updateDepth,
+  updateHole,
+  updateRectangle,
   snap,
   type Entity,
 } from "./model";
@@ -54,6 +57,43 @@ describe("parametric geometry", () => {
     expect(calibration(200, 50)).toBe(0.25);
     expect(() => calibration(0, 20)).toThrow();
     expect(() => calibration(30, -2)).toThrow();
+  });
+  it("resizes a body from one side and clamps linked holes", () => {
+    const part = {
+      ...newPart("f", "body"),
+      entities: [
+        { id: "body", type: "rectangle", x: 10, y: 20, width: 80, height: 40 },
+        { id: "hole", type: "hole", x: 85, y: 40, diameter: 10, outerId: "body" },
+      ] as Entity[],
+    };
+    const resized = updateRectangle(part, "body", "right", 60);
+    expect(resized.entities[0]).toMatchObject({ x: 10, width: 50 });
+    expect(resized.entities[1]).toMatchObject({ x: 55, y: 40, diameter: 10 });
+    expect(updateRectangle(part, "body", "left", 30).entities[0]).toMatchObject({
+      x: 30,
+      width: 60,
+    });
+  });
+  it("clamps hole movement and diameter and keeps thickness positive", () => {
+    const part = {
+      ...newPart("f", "body"),
+      depth: 5,
+      entities: [
+        { id: "body", type: "rectangle", x: 0, y: 0, width: 80, height: 40 },
+        { id: "hole", type: "hole", x: 40, y: 20, diameter: 10, outerId: "body" },
+      ] as Entity[],
+    };
+    expect(updateHole(part, "hole", { x: 100, y: -10 }).entities[1]).toMatchObject({
+      x: 75,
+      y: 5,
+      diameter: 10,
+    });
+    expect(updateHole(part, "hole", { diameter: 200 }).entities[1]).toMatchObject({
+      x: 40,
+      y: 20,
+      diameter: 40,
+    });
+    expect(updateDepth(part, -1).depth).toBe(0.1);
   });
 });
 describe("exports and extrusion", () => {

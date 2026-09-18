@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import AutomaticScanner from "./AutomaticScanner";
+import DirectEditView from "./DirectEditView";
 import Editor from "./Editor";
 import {
   newPart,
@@ -22,7 +23,9 @@ export default function App() {
     [projectId, setProjectId] = useState(""),
     [partId, setPartId] = useState(""),
     [appMode, setAppMode] = useState<AppMode>("HOME"),
-    [mode, setMode] = useState("PROJECT");
+    [mode, setMode] = useState("PROJECT"),
+    [directEdit, setDirectEdit] = useState(true),
+    [liveEditing, setLiveEditing] = useState(false);
   const queue = useRef(Promise.resolve());
   useEffect(() => {
     loadDocument()
@@ -38,7 +41,7 @@ export default function App() {
       );
   }, []);
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || liveEditing) return;
     setStatus("Saving…");
     let current = true;
     queue.current = queue.current
@@ -58,7 +61,7 @@ export default function App() {
     return () => {
       current = false;
     };
-  }, [doc, ready]);
+  }, [doc, ready, liveEditing]);
   const project = doc.projects.find((p) => p.id === projectId),
     part = project?.parts.find((p) => p.id === partId);
   function updateProject(p: Project) {
@@ -100,6 +103,7 @@ export default function App() {
     updateProject({ ...project, parts: [...project.parts, p] });
     setPartId(p.id);
     setMode("2D");
+    setDirectEdit(true);
   }
   function openAutomaticPart(scannedPart: Part, sourceImage: Photo) {
     const automaticProjectId = uid();
@@ -118,6 +122,7 @@ export default function App() {
     setPartId(part.id);
     setMode("3D");
     setAppMode("MANUAL");
+    setDirectEdit(true);
   }
   async function exportFile(format: "SVG" | "STL") {
     if (!part) return;
@@ -300,6 +305,7 @@ export default function App() {
                             onClick={() => {
                               setPartId(p.id);
                               setMode("2D");
+                              setDirectEdit(true);
                             }}
                           >
                             <strong>{p.name}</strong>
@@ -371,7 +377,20 @@ export default function App() {
                     </div>
                   </div>
                   {mode === "2D" ? (
-                    <Editor key={part.id} part={part} onChange={updatePart} />
+                    directEdit ? (
+                      <DirectEditView
+                        part={part}
+                        onChange={updatePart}
+                        onInteractionStart={() => setLiveEditing(true)}
+                        onInteractionEnd={() => setLiveEditing(false)}
+                        onFallback={() => setDirectEdit(false)}
+                      />
+                    ) : (
+                      <>
+                        <button onClick={() => setDirectEdit(true)}>Volver a edición directa</button>
+                        <Editor key={part.id} part={part} onChange={updatePart} />
+                      </>
+                    )
                   ) : (
                     <Suspense fallback={<p>Loading 3D viewer…</p>}>
                       <Viewer part={part} onChange={updatePart} />

@@ -64,6 +64,98 @@ export function move(e: Entity, dx: number, dy: number): Entity {
     ? { ...e, x1: e.x1 + dx, y1: e.y1 + dy, x2: e.x2 + dx, y2: e.y2 + dy }
     : { ...e, x: e.x + dx, y: e.y + dy };
 }
+export type RectangleSide = "left" | "right" | "top" | "bottom";
+export type DimensionAxis = "width" | "height";
+export const MIN_DIMENSION = 0.1;
+
+export function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+export function clampHoleToRectangle(
+  hole: Extract<Entity, { type: "hole" }>,
+  rectangle: Extract<Entity, { type: "rectangle" }>,
+): Extract<Entity, { type: "hole" }> {
+  const radius = Math.min(hole.diameter / 2, rectangle.width / 2, rectangle.height / 2);
+  return {
+    ...hole,
+    diameter: Math.max(MIN_DIMENSION, radius * 2),
+    x: clamp(hole.x, rectangle.x + radius, rectangle.x + rectangle.width - radius),
+    y: clamp(hole.y, rectangle.y + radius, rectangle.y + rectangle.height - radius),
+  };
+}
+
+export function resizeRectangle(
+  rectangle: Extract<Entity, { type: "rectangle" }>,
+  side: RectangleSide,
+  coordinate: number,
+) {
+  if (side === "right")
+    return { ...rectangle, width: Math.max(MIN_DIMENSION, coordinate - rectangle.x) };
+  if (side === "left") {
+    const right = rectangle.x + rectangle.width;
+    const x = Math.min(coordinate, right - MIN_DIMENSION);
+    return { ...rectangle, x, width: right - x };
+  }
+  if (side === "bottom")
+    return { ...rectangle, height: Math.max(MIN_DIMENSION, coordinate - rectangle.y) };
+  const bottom = rectangle.y + rectangle.height;
+  const y = Math.min(coordinate, bottom - MIN_DIMENSION);
+  return { ...rectangle, y, height: bottom - y };
+}
+
+export function updateRectangle(
+  part: Part,
+  rectangleId: string,
+  side: RectangleSide,
+  coordinate: number,
+) {
+  const rectangle = part.entities.find(
+    (entity): entity is Extract<Entity, { type: "rectangle" }> =>
+      entity.id === rectangleId && entity.type === "rectangle",
+  );
+  if (!rectangle) return part;
+  const nextRectangle = resizeRectangle(rectangle, side, coordinate);
+  return {
+    ...part,
+    entities: part.entities.map((entity) => {
+      if (entity.id === rectangleId) return nextRectangle;
+      if (entity.type !== "hole" || entity.outerId !== rectangleId) return entity;
+      return clampHoleToRectangle(entity, nextRectangle);
+    }),
+  };
+}
+
+export function updateHole(
+  part: Part,
+  holeId: string,
+  change: Partial<Pick<Extract<Entity, { type: "hole" }>, "x" | "y" | "diameter">>,
+) {
+  const hole = part.entities.find(
+    (entity): entity is Extract<Entity, { type: "hole" }> =>
+      entity.id === holeId && entity.type === "hole",
+  );
+  if (!hole) return part;
+  const rectangle = part.entities.find(
+    (entity): entity is Extract<Entity, { type: "rectangle" }> =>
+      entity.id === hole.outerId && entity.type === "rectangle",
+  );
+  if (!rectangle) return part;
+  const nextHole = clampHoleToRectangle(
+    { ...hole, ...change, diameter: Math.max(MIN_DIMENSION, change.diameter ?? hole.diameter) },
+    rectangle,
+  );
+  return {
+    ...part,
+    entities: part.entities.map((entity) =>
+      entity.id === holeId ? nextHole : entity,
+    ),
+  };
+}
+
+export function updateDepth(part: Part, depth: number) {
+  return { ...part, depth: Math.max(MIN_DIMENSION, depth) };
+}
 export function anchors(e: Entity): Point[] {
   if (e.type === "line")
     return [

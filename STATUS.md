@@ -41,10 +41,12 @@ These statements are based on the current source and automated checks. Real-devi
 - The scanner is intentionally limited to simple deterministic raster fixtures: one axis-aligned rectangular contour and circular features. General perspective correction, arbitrary contours, and robust real-world photo interpretation are not implemented.
 - Real-device camera, downloads, and installation have not been verified in this block. Browser E2E verified storage persistence, touch gestures, downloads, and the existing Manual workflow.
 - The production build reports a chunk-size warning for a generated chunk larger than 500 kB.
+- Real-device acceptance previously found that both Automatic Scanner image actions did nothing; this block replaces unreliable hidden-input programmatic activation with direct native label activation.
+- DirectEditView is automated-test verified but has not yet passed real-device acceptance on iPhone or Android.
 
 ## Current work
 
-This development block is complete for the approved scanner milestone. Stage A added explicit subtractive holes and v1-to-v2 persistence migration. Stage B added local raster preprocessing, deterministic rectangle/circle detection, uncertainty questions, confirmation, and creation of editable parametric geometry. No external service or dependency was added.
+This block adds DirectEditView as the primary 2D editing experience. It uses the existing Part model, SVG orthographic handles, live dimensions, long-press numeric editing, hole constraints, contextual thickness editing, and immediate 3D regeneration through the existing Viewer. The original Editor remains available through Editor avanzado. No scanner detection, export architecture, Vercel, production, or main configuration was changed.
 
 ## Decisions pending
 
@@ -62,20 +64,21 @@ This development block is complete for the approved scanner milestone. Stage A a
 
 ## Next recommended action
 
-Test the LAB preview on a real phone with a simple front-facing rectangular sketch and one circular hole. Keep `main` as the only GitHub Pages production source. Do not begin the next Napkin3D development block until separately instructed.
+Test the LAB preview on a real phone with a rectangular part and one circular hole: drag body sides, long-press dimensions, move/resize the hole, and edit thickness. Decide after that acceptance test whether the legacy Editor should remain exposed as fallback. Keep `main` as the only GitHub Pages production source.
 
 ## Last verification
 
 On `lab`, after this development block:
 
-- `npm test`: passed, 3 files and 14 tests.
+- `npm test`: passed, 3 files and 16 tests.
 - `npm run lint`: passed.
 - `npm run build`: passed; Vite emitted only the existing chunk-size warning.
-- `npm run test:e2e` with a fresh server: passed, 3 mobile browser tests. This verified HOME, Manual loading, existing touch editing, reload persistence, local scanner detection, unresolved-measurement gating, confirmation, 3D opening, source-photo retention, and manual hole editing.
+- `npm run test:e2e` with a fresh server: passed, 5 mobile browser tests. This verified legacy Manual fallback, local scanner detection, DirectEditView body/hole/thickness interaction, long-press numeric editing, reload persistence, and native photo inputs.
 - `git diff --check`: passed.
 - `npm run build` with default environment: passed; generated asset URLs use `/napkin3d/` for GitHub Pages.
 - `VERCEL=1 npm run build`: passed; generated asset URLs use `/` for a Vercel deployment root.
 - `npx playwright test e2e/workflow.spec.ts -g "automatic scanner"`: passed, 1 test. This verified local image processing, unresolved-measurement gating, confirmation, 3D opening, and manual hole diameter editing.
+- `npx playwright test e2e/workflow.spec.ts -g "automatic"`: passed, 2 tests. This verified separate camera/gallery input attributes, native filechooser activation, cancellation, and repeated image selection.
 - Real-device smoke testing: not run.
 
 Deployment architecture: `main` -> GitHub Pages -> `https://gommez.github.io/napkin3d/`; `lab` -> Vercel Preview -> `https://napkin3d-2xjcoomoz-gommez.vercel.app`. Automatic GitHub-to-Vercel deployment remains unconfigured; this preview was deployed manually from `lab`.

@@ -19,6 +19,7 @@ test("mobile workflow on the production Pages path", async ({ page }) => {
   await page.getByRole("button", { name: "PROYECTO MANUAL" }).click();
   await page.getByRole("button", { name: "Create your first project" }).click();
   await page.getByRole("button", { name: "+ Part", exact: true }).click();
+  await page.getByRole("button", { name: "Editor avanzado" }).click();
   const svg = page.locator("svg.editor");
   await expect(svg).toBeVisible();
   // SVG fixture goes through the same browser image decode / JPEG downsampling path as photos.
@@ -76,6 +77,7 @@ test("mobile workflow on the production Pages path", async ({ page }) => {
   await page
     .getByRole("button", { name: "New part 1 entities · 8 mm deep" })
     .click();
+  await page.getByRole("button", { name: "Editor avanzado" }).click();
   await expect(page.locator("svg.editor image")).toHaveCount(1);
   await page.getByRole("button", { name: "Inicio", exact: true }).click();
   await page.getByRole("button", { name: "PROYECTO MANUAL" }).click();
@@ -84,6 +86,7 @@ test("mobile workflow on the production Pages path", async ({ page }) => {
   await page
     .getByRole("button", { name: "New part 1 entities · 8 mm deep" })
     .click();
+  await page.getByRole("button", { name: "Editor avanzado" }).click();
   await page
     .locator(".properties select")
     .selectOption({ label: "1. rectangle" });
@@ -107,6 +110,7 @@ test("touch drawing, moving, resizing and panning", async ({
   await page.getByRole("button", { name: "PROYECTO MANUAL" }).click();
   await page.getByRole("button", { name: "Create your first project" }).click();
   await page.getByRole("button", { name: "+ Part", exact: true }).click();
+  await page.getByRole("button", { name: "Editor avanzado" }).click();
   const svg = page.locator("svg.editor");
   const cdp = await context.newCDPSession(page);
   async function drag(x: number, y: number, dx: number, dy: number) {
@@ -206,6 +210,7 @@ test("automatic scanner resolves a rectangular part with a circular hole", async
   await page.getByRole("button", { name: "CONFIRMAR PIEZA" }).click();
   await expect(page.locator(".viewer canvas")).toBeVisible();
   await page.getByRole("button", { name: "2D", exact: true }).click();
+  await page.getByRole("button", { name: "Editor avanzado" }).click();
   await expect(page.locator("svg.editor image")).toHaveCount(1);
   await page.locator(".properties select").selectOption({ label: "2. hole" });
   await expect(page.getByLabel("diameter", { exact: true })).toHaveValue("10");
@@ -213,4 +218,120 @@ test("automatic scanner resolves a rectangular part with a circular hole", async
   await expect(page.getByLabel("diameter", { exact: true })).toHaveValue("12");
   await page.getByRole("button", { name: "3D", exact: true }).click();
   await expect(page.locator(".viewer canvas")).toBeVisible();
+});
+
+test("direct edit updates body, hole and thickness from the same part", async ({
+  page,
+}) => {
+  await page.goto("/napkin3d/");
+  await page.getByRole("button", { name: "PROYECTO AUTOMÁTICO" }).click();
+  await page.locator("input[type=file]").first().setInputFiles({
+    name: "direct.svg",
+    mimeType: "image/svg+xml",
+    buffer: Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="80"><rect width="100" height="80" fill="white"/><rect x="10" y="10" width="80" height="60" fill="none" stroke="black"/><circle cx="50" cy="40" r="8" fill="black"/></svg>',
+    ),
+  });
+  await page.getByLabel("Ancho exterior (mm)").fill("80");
+  await page.getByLabel("Diámetro del agujero 1 (mm)").fill("10");
+  await page.getByLabel("¿Qué grosor tendrá la pieza? (mm)").fill("5");
+  await page.getByRole("button", { name: "CONTINUAR" }).click();
+  await page.getByRole("button", { name: "CONFIRMAR PIEZA" }).click();
+  await page.getByRole("button", { name: "2D", exact: true }).click();
+  const surface = page.locator(".direct-edit-surface");
+  await expect(surface).toBeVisible();
+  const right = surface.locator('[data-handle="right"]');
+  const rightBox = (await right.boundingBox())!;
+  await right.dispatchEvent("pointerdown", {
+    pointerId: 11,
+    pointerType: "touch",
+    clientX: rightBox.x,
+    clientY: rightBox.y,
+  });
+  await surface.dispatchEvent("pointermove", {
+    pointerId: 11,
+    pointerType: "touch",
+    clientX: rightBox.x + 24,
+    clientY: rightBox.y,
+  });
+  await surface.dispatchEvent("pointerup", { pointerId: 11, pointerType: "touch" });
+  await expect(surface.locator("text").first()).not.toHaveText("80 mm");
+
+  const widthLabel = surface.locator(".dimension-label").nth(0);
+  await widthLabel.dispatchEvent("pointerdown", { clientX: 0, clientY: 0 });
+  await page.waitForTimeout(850);
+  await expect(page.locator(".inline-dimension-input")).toBeVisible();
+  await page.locator(".inline-dimension-input").fill("83.5");
+  await page.locator(".inline-dimension-input").press("Enter");
+  await expect(surface.locator("text").first()).toHaveText("83.5 mm");
+
+  const hole = surface.locator('circle[data-id]').first();
+  await hole.click();
+  await expect(page.getByText("Ø10 mm", { exact: true })).toBeVisible();
+  const center = surface.locator('[data-handle="hole-center"]');
+  const centerBox = (await center.boundingBox())!;
+  await center.dispatchEvent("pointerdown", { pointerId: 12, pointerType: "touch", clientX: centerBox.x, clientY: centerBox.y });
+  await surface.dispatchEvent("pointermove", { pointerId: 12, pointerType: "touch", clientX: centerBox.x + 12, clientY: centerBox.y + 8 });
+  await surface.dispatchEvent("pointerup", { pointerId: 12, pointerType: "touch" });
+  const diameter = surface.locator('[data-handle="hole-diameter"]');
+  const diameterBox = (await diameter.boundingBox())!;
+  await diameter.dispatchEvent("pointerdown", { pointerId: 13, pointerType: "touch", clientX: diameterBox.x, clientY: diameterBox.y });
+  await surface.dispatchEvent("pointermove", { pointerId: 13, pointerType: "touch", clientX: diameterBox.x + 10, clientY: diameterBox.y });
+  await surface.dispatchEvent("pointerup", { pointerId: 13, pointerType: "touch" });
+
+  await page.getByRole("button", { name: /Grosor/ }).click();
+  await expect(page.locator(".direct-depth-surface")).toBeVisible();
+  const depthHandle = page.locator('.direct-depth-surface [data-handle="depth"]');
+  const depthBox = (await depthHandle.boundingBox())!;
+  await depthHandle.dispatchEvent("pointerdown", { pointerId: 14, pointerType: "touch", clientX: depthBox.x, clientY: depthBox.y });
+  await depthHandle.dispatchEvent("pointermove", { pointerId: 14, pointerType: "touch", clientX: depthBox.x + 18, clientY: depthBox.y });
+  await depthHandle.dispatchEvent("pointerup", { pointerId: 14, pointerType: "touch" });
+  await page.getByLabel("Grosor directo").fill("6.8");
+  await expect(page.locator(".direct-depth-surface text")).toHaveText("6.8 mm");
+});
+
+test("automatic photo actions use separate native file inputs", async ({
+  page,
+}) => {
+  const image = {
+    name: "photo.svg",
+    mimeType: "image/svg+xml",
+    buffer: Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="80"><rect width="100" height="80" fill="white"/><rect x="10" y="10" width="80" height="60" fill="none" stroke="black"/></svg>',
+    ),
+  };
+  await page.goto("/napkin3d/");
+  await page.getByRole("button", { name: "PROYECTO AUTOMÁTICO" }).click();
+  await expect(page.locator("#automatic-camera-input")).toHaveAttribute(
+    "accept",
+    "image/*",
+  );
+  await expect(page.locator("#automatic-camera-input")).toHaveAttribute(
+    "capture",
+    "environment",
+  );
+  await expect(page.locator("#automatic-gallery-input")).toHaveAttribute(
+    "accept",
+    "image/*",
+  );
+  await expect(page.locator("#automatic-gallery-input")).not.toHaveAttribute(
+    "capture",
+  );
+
+  const canceled = page.waitForEvent("filechooser");
+  await page.locator('label[for="automatic-camera-input"]').click();
+  await (await canceled).setFiles([]);
+  await expect(page.getByRole("heading", { name: "NUEVA PIEZA" })).toBeVisible();
+
+  const cameraChooser = page.waitForEvent("filechooser");
+  await page.locator('label[for="automatic-camera-input"]').click();
+  await (await cameraChooser).setFiles(image);
+  await expect(page.getByRole("heading", { name: "REVISA EL BOCETO" })).toBeVisible();
+
+  await page.getByRole("button", { name: "← Inicio" }).click();
+  await page.getByRole("button", { name: "PROYECTO AUTOMÁTICO" }).click();
+  const galleryChooser = page.waitForEvent("filechooser");
+  await page.locator('label[for="automatic-gallery-input"]').click();
+  await (await galleryChooser).setFiles(image);
+  await expect(page.getByRole("heading", { name: "REVISA EL BOCETO" })).toBeVisible();
 });
