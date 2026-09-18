@@ -226,3 +226,48 @@ Probar TEST-001 impreso y manuscrito en un móvil real, registrar detecciones,
 posiciones, tiempos y errores de inicialización, y comprobar arranque offline
 con los assets ya servidos localmente. No implementar asociación semántica hasta
 revisar esas detecciones.
+
+## Resultado físico TEST-001 — 2026-09-18
+
+- TEST-001 fue validado físicamente hoy en un iPhone contra el LAB desplegado.
+- La captura/fotografía real se procesa correctamente en el dispositivo.
+- La geometría principal rectangular se detecta razonablemente bien.
+- Aparecen falsos candidatos geométricos provocados por sombras, fondo y otros
+  componentes. Este problema queda pendiente y no se corrige en este bloque.
+- PaddleOCR local inicializa y ejecuta correctamente en el iPhone.
+- El detector OCR localiza correctamente regiones correspondientes a cotas
+  manuscritas.
+- La transcripción manuscrita todavía es insuficiente: en TEST-001 se
+  obtuvieron detecciones OCR `y` y `5`, mientras que las regiones visuales
+  contenían cotas manuscritas como `30` y `50`.
+- Evaluación: detección/localización OCR prometedora; reconocimiento manuscrito
+  **TEST-001 FAIL** para el nivel funcional requerido. PaddleOCR no se descarta.
+- La siguiente iteración será TEST-002: calibración del reconocimiento
+  manteniendo PaddleOCR. TEST-002 estudiará crops de las regiones ya detectadas,
+  ampliación, contraste, escala de grises, binarización y parámetros públicos
+  soportados de PaddleOCR.
+- Se mantiene el OCR full-photo actual como baseline A/B.
+- No se implementa asociación semántica texto→ancho/alto/agujero/grosor;
+  `ASOCIACIÓN` continúa `NOT_IMPLEMENTED`.
+- No se modifica `Part` automáticamente, no se toca todavía el detector
+  geométrico y no se cambia de motor OCR sin una nueva decisión.
+
+### Decisión técnica para TEST-002
+
+- Mantener la API pública `PaddleOCR.predict()`.
+- No acceder a APIs internas del SDK para separar detector y recognizer.
+- Durante el piloto es aceptable volver a ejecutar detección+reconocimiento
+  sobre los crops y medir su coste.
+- Utilizar únicamente parámetros públicos soportados de PaddleOCR para la
+  calibración.
+- No hardcodear `30`, `50` ni ningún valor de TEST-001.
+- No convertir automáticamente letras parecidas en números.
+- El dominio esperado son cotas técnicas con caracteres numéricos y símbolos
+  como `Ø`, `R`, `x`, `×`, punto, coma y `mm`; cualquier clasificación de
+  compatibilidad debe mantenerse separada del OCR bruto.
+
+### Próxima acción registrada
+
+Cerrar esta sesión sin iniciar TEST-002 ni introducir cambios funcionales.
+Preparar TEST-002 sobre la rama `lab`, manteniendo PaddleOCR, baseline A/B
+full-photo y `ASOCIACIÓN: NOT_IMPLEMENTED`. No modificar `main`.
