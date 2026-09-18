@@ -181,3 +181,36 @@ test("touch drawing, moving, resizing and panning", async ({
     ),
   ).toBeTruthy();
 });
+
+test("automatic scanner resolves a rectangular part with a circular hole", async ({
+  page,
+}) => {
+  await page.goto("/napkin3d/");
+  await page.getByRole("button", { name: "PROYECTO AUTOMÁTICO" }).click();
+  await page
+    .locator("input[type=file]")
+    .first()
+    .setInputFiles({
+      name: "bracket.svg",
+      mimeType: "image/svg+xml",
+      buffer: Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="80"><rect width="100" height="80" fill="white"/><rect x="10" y="10" width="80" height="60" fill="none" stroke="black"/><circle cx="50" cy="40" r="8" fill="black"/></svg>',
+      ),
+    });
+  await expect(page.getByRole("heading", { name: "REVISA EL BOCETO" })).toBeVisible();
+  await page.getByLabel("Ancho exterior (mm)").fill("80");
+  await page.getByLabel("Diámetro del agujero 1 (mm)").fill("10");
+  await page.getByLabel("¿Qué grosor tendrá la pieza? (mm)").fill("5");
+  await page.getByRole("button", { name: "CONTINUAR" }).click();
+  await expect(page.getByRole("heading", { name: "CONFIRMA TU PIEZA" })).toBeVisible();
+  await page.getByRole("button", { name: "CONFIRMAR PIEZA" }).click();
+  await expect(page.locator(".viewer canvas")).toBeVisible();
+  await page.getByRole("button", { name: "2D", exact: true }).click();
+  await expect(page.locator("svg.editor image")).toHaveCount(1);
+  await page.locator(".properties select").selectOption({ label: "2. hole" });
+  await expect(page.getByLabel("diameter", { exact: true })).toHaveValue("10");
+  await page.getByLabel("diameter", { exact: true }).fill("12");
+  await expect(page.getByLabel("diameter", { exact: true })).toHaveValue("12");
+  await page.getByRole("button", { name: "3D", exact: true }).click();
+  await expect(page.locator(".viewer canvas")).toBeVisible();
+});

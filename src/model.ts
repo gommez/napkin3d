@@ -9,7 +9,14 @@ export type Entity =
       width: number;
       height: number;
     })
-  | (Base & { type: "circle"; x: number; y: number; diameter: number });
+  | (Base & { type: "circle"; x: number; y: number; diameter: number })
+  | (Base & {
+      type: "hole";
+      x: number;
+      y: number;
+      diameter: number;
+      outerId: string;
+    });
 export type Photo = {
   data: string;
   width: number;
@@ -36,7 +43,8 @@ export type Project = {
   createdAt: string;
   updatedAt: string;
 };
-export type Document = { version: 1; projects: Project[] };
+export type Document = { version: 2; projects: Project[] };
+export type LegacyDocument = { version: 1; projects: Project[] };
 export const uid = () => crypto.randomUUID();
 export const now = () => new Date().toISOString();
 export function newPart(folderId: string, name: string): Part {
@@ -62,7 +70,7 @@ export function anchors(e: Entity): Point[] {
       { x: e.x1, y: e.y1 },
       { x: e.x2, y: e.y2 },
     ];
-  if (e.type === "circle") return [{ x: e.x, y: e.y }];
+  if (e.type === "circle" || e.type === "hole") return [{ x: e.x, y: e.y }];
   return [
     { x: e.x, y: e.y },
     { x: e.x + e.width, y: e.y },
@@ -99,7 +107,7 @@ export function calibration(pixelDistance: number, mm: number) {
 }
 export function bounds(entities: Entity[]) {
   const pts = entities.flatMap((e) =>
-    e.type === "circle"
+    e.type === "circle" || e.type === "hole"
       ? [
           { x: e.x - e.diameter / 2, y: e.y - e.diameter / 2 },
           { x: e.x + e.diameter / 2, y: e.y + e.diameter / 2 },

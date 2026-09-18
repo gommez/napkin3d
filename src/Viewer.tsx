@@ -165,9 +165,9 @@ export default function Viewer({
         </div>
       </details>
       <p className="notice">
-        Each rectangle and circle is a separate solid. Overlaps are not fused;
-        nested shapes are not holes. Lines are guides only and do not extrude.
-        For reliable slicing, start with one closed shape.
+        Rectangles are outer solids, circles remain separate solids, and
+        explicit holes cut through their linked rectangle. Lines are guides
+        only and do not extrude.
       </p>
     </>
   );

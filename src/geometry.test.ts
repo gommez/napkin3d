@@ -106,4 +106,78 @@ describe("exports and extrusion", () => {
     mesh.dispose();
     disposePart(group);
   });
+  it("keeps old circles additive while subtracting explicit holes", () => {
+    const additive = {
+      ...newPart("f", "circle"),
+      entities: [
+        { id: "c", type: "circle", x: 25, y: 40, diameter: 10 },
+      ] as Entity[],
+      depth: 5,
+    };
+    expect(buildPart(additive).children).toHaveLength(1);
+
+    const part = {
+      ...newPart("f", "holed"),
+      entities: [
+        rectangle,
+        {
+          id: "h",
+          type: "hole",
+          x: 25,
+          y: 40,
+          diameter: 10,
+          outerId: rectangle.id,
+        },
+      ] as Entity[],
+      depth: 5,
+    };
+    const group = buildPart(part);
+    expect(group.children).toHaveLength(1);
+    const geometry = new STLLoader().parse(exportSTL(part));
+    const positions = geometry.getAttribute("position");
+    let volume = 0;
+    for (let i = 0; i < positions.count; i += 3) {
+      const a = new THREE.Vector3().fromBufferAttribute(positions, i),
+        b = new THREE.Vector3().fromBufferAttribute(positions, i + 1),
+        c = new THREE.Vector3().fromBufferAttribute(positions, i + 2);
+      volume += a.dot(b.cross(c)) / 6;
+    }
+    expect(Math.abs(volume)).toBeCloseTo(6000 - Math.PI * 25 * 5, 0);
+    geometry.dispose();
+    disposePart(group);
+  });
+  it("respects hole diameter and position in the physical mesh", () => {
+    const part = {
+      ...newPart("f", "holed"),
+      entities: [
+        rectangle,
+        {
+          id: "h",
+          type: "hole",
+          x: 15,
+          y: 30,
+          diameter: 6,
+          outerId: rectangle.id,
+        },
+      ] as Entity[],
+      depth: 5,
+    };
+    const group = buildPart(part),
+      mesh = group.children[0] as THREE.Mesh;
+    const centerRay = new THREE.Raycaster(
+      new THREE.Vector3(-10, 10, 10),
+      new THREE.Vector3(0, 0, -1),
+    );
+    const solidRay = new THREE.Raycaster(
+      new THREE.Vector3(0, 0, 10),
+      new THREE.Vector3(0, 0, -1),
+    );
+    expect(centerRay.intersectObject(mesh)).toHaveLength(0);
+    expect(solidRay.intersectObject(mesh).length).toBeGreaterThan(0);
+    const svg = exportSVG(part);
+    expect(svg).toContain('fill-rule="evenodd"');
+    expect(svg).toContain("12 30");
+    expect(svg).toContain("18 30");
+    disposePart(group);
+  });
 });

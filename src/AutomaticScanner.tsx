@@ -1,0 +1,243 @@
+import { useRef, useState } from "react";
+import {
+  partFromScan,
+  resolveScan,
+  scanRaster,
+  type ScanAnswers,
+  type ScanResult,
+} from "./scanner";
+import type { Part, Photo } from "./model";
+
+export default function AutomaticScanner({
+  onBack,
+  onComplete,
+}: {
+  onBack: () => void;
+  onComplete: (part: Part, photo: Photo) => void;
+}) {
+  const camera = useRef<HTMLInputElement>(null);
+  const gallery = useRef<HTMLInputElement>(null);
+  const [image, setImage] = useState<string>();
+  const [scan, setScan] = useState<ScanResult>();
+  const [answers, setAnswers] = useState<ScanAnswers>({
+    holeDiametersMm: {},
+  });
+  const [confirmed, setConfirmed] = useState(false);
+  const [error, setError] = useState("");
+  const resolution = scan ? resolveScan(scan, answers) : undefined;
+
+  async function process(file?: File) {
+    if (!file) return;
+    try {
+      const url = URL.createObjectURL(file);
+      const photo = new Image();
+      photo.src = url;
+      await photo.decode();
+      const scale = Math.min(1, 1000 / Math.max(photo.width, photo.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(8, Math.round(photo.width * scale));
+      canvas.height = Math.max(8, Math.round(photo.height * scale));
+      canvas.getContext("2d")!.drawImage(photo, 0, 0, canvas.width, canvas.height);
+      const result = scanRaster(
+        canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height)
+          .data,
+        canvas.width,
+        canvas.height,
+      );
+      setImage(canvas.toDataURL("image/jpeg", 0.85));
+      setScan(result);
+      setAnswers({ holeDiametersMm: {} });
+      setConfirmed(false);
+      setError("");
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError((e as Error).message || "No entiendo completamente este contorno.");
+    }
+  }
+
+  function updateAnswers(next: Partial<ScanAnswers>) {
+    setAnswers((current) => ({ ...current, ...next }));
+  }
+
+  if (!scan) {
+    return (
+      <main className="entry-screen automatic-screen">
+        <button className="back-button" onClick={onBack}>
+          ← Inicio
+        </button>
+        <h2>NUEVA PIEZA</h2>
+        <div className="entry-actions">
+          <button
+            className="entry-choice entry-choice-primary"
+            onClick={() => camera.current?.click()}
+          >
+            <strong>HACER FOTO</strong>
+          </button>
+          <button className="entry-choice" onClick={() => gallery.current?.click()}>
+            <strong>ELEGIR FOTO</strong>
+          </button>
+        </div>
+        <input
+          ref={camera}
+          hidden
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={(e) => {
+            void process(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+        <input
+          ref={gallery}
+          hidden
+          type="file"
+          accept="image/*"
+          onChange={(e) => {
+            void process(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+        {error && <p className="notice" role="alert">{error}</p>}
+      </main>
+    );
+  }
+
+  if (confirmed) {
+    return (
+      <main className="entry-screen automatic-screen">
+        <button className="back-button" onClick={() => setConfirmed(false)}>
+          ← Revisar
+        </button>
+        <h2>CONFIRMA TU PIEZA</h2>
+        <div className="scan-summary">
+          <strong>
+            {resolution!.outer.width * resolution!.scaleMmPerPixel!} × {resolution!.outer.height * resolution!.scaleMmPerPixel!} mm
+          </strong>
+          <span>Grosor: {resolution!.thicknessMm} mm</span>
+          <span>{resolution!.holes.length} agujero(s)</span>
+          {resolution!.holes.map((hole) => (
+            <span key={hole.id}>Agujero: {hole.diameterMm} mm</span>
+          ))}
+        </div>
+        <button
+          className="entry-choice entry-choice-primary"
+          onClick={() => {
+            const part = partFromScan(scan, answers);
+            const sourceImage = {
+              data: image!,
+              width: scan.imageWidth,
+              height: scan.imageHeight,
+              mmPerPixel: resolution!.scaleMmPerPixel!,
+              opacity: 0.55,
+            };
+            onComplete(part, sourceImage);
+          }}
+        >
+          <strong>CONFIRMAR PIEZA</strong>
+          <span>Abrir en 3D</span>
+        </button>
+      </main>
+    );
+  }
+
+  return (
+    <main className="entry-screen automatic-screen scanner-review">
+      <button className="back-button" onClick={onBack}>
+        ← Inicio
+      </button>
+      <h2>REVISA EL BOCETO</h2>
+      {image && <img className="scan-photo" src={image} alt="Foto del boceto" />}
+      <svg
+        className="scan-preview"
+        viewBox={`0 0 ${scan.imageWidth} ${scan.imageHeight}`}
+        role="img"
+        aria-label="Geometría reconstruida"
+      >
+        <rect
+          x={scan.outer.x}
+          y={scan.outer.y}
+          width={scan.outer.width}
+          height={scan.outer.height}
+          fill="none"
+          stroke="#163d38"
+          strokeWidth={Math.max(1, scan.outer.width / 100)}
+        />
+        {scan.holes.map((hole) => (
+          <g key={hole.id}>
+            <circle
+              cx={hole.x}
+              cy={hole.y}
+              r={hole.diameter / 2}
+              fill="none"
+              stroke="#e27525"
+              strokeWidth={Math.max(1, scan.outer.width / 140)}
+              strokeDasharray="5 3"
+            />
+            <path
+              d={`M ${hole.x - hole.diameter / 3} ${hole.y} H ${hole.x + hole.diameter / 3} M ${hole.x} ${hole.y - hole.diameter / 3} V ${hole.y + hole.diameter / 3}`}
+              stroke="#e27525"
+              strokeWidth={Math.max(1, scan.outer.width / 140)}
+            />
+          </g>
+        ))}
+      </svg>
+      <p className="hint">Contorno exterior detectado. Los círculos marcados necesitan confirmación.</p>
+      <div className="scan-fields">
+        <label>
+          Ancho exterior (mm)
+          <input
+            type="number"
+            min="0.1"
+            step="any"
+            inputMode="decimal"
+            value={answers.referenceWidthMm ?? ""}
+            onChange={(e) => updateAnswers({ referenceWidthMm: e.target.valueAsNumber })}
+          />
+        </label>
+        {scan.holes.map((hole, index) => (
+          <label key={hole.id}>
+            Diámetro del agujero {index + 1} (mm)
+            <input
+              type="number"
+              min="0.1"
+              step="any"
+              inputMode="decimal"
+              value={answers.holeDiametersMm[hole.id] ?? ""}
+              onChange={(e) =>
+                updateAnswers({
+                  holeDiametersMm: {
+                    ...answers.holeDiametersMm,
+                    [hole.id]: e.target.valueAsNumber,
+                  },
+                })
+              }
+            />
+          </label>
+        ))}
+        <label>
+          ¿Qué grosor tendrá la pieza? (mm)
+          <input
+            type="number"
+            min="0.1"
+            step="any"
+            inputMode="decimal"
+            value={answers.thicknessMm ?? ""}
+            onChange={(e) => updateAnswers({ thicknessMm: e.target.valueAsNumber })}
+          />
+        </label>
+      </div>
+      {!resolution?.ready && (
+        <p className="notice">Completa las medidas pendientes antes de confirmar.</p>
+      )}
+      <button
+        className="entry-choice entry-choice-primary"
+        disabled={!resolution?.ready}
+        onClick={() => setConfirmed(true)}
+      >
+        <strong>CONTINUAR</strong>
+        <span>Revisar medidas</span>
+      </button>
+    </main>
+  );
+}

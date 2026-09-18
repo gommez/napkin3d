@@ -139,12 +139,23 @@ export default function Editor({
         };
       return;
     }
+    const outer = part.entities.find((v) => v.id === selected);
+    if (tool === "Hole" && outer?.type !== "rectangle") return;
     const a = snap(p, part.entities, gridSnap, featureSnap, view.w / 40);
     const newEntity: Entity =
       tool === "Line"
         ? { id: uid(), type: "line", x1: a.x, y1: a.y, x2: a.x, y2: a.y }
         : tool === "Circle"
           ? { id: uid(), type: "circle", x: a.x, y: a.y, diameter: 0.1 }
+          : tool === "Hole"
+            ? {
+                id: uid(),
+                type: "hole",
+                x: a.x,
+                y: a.y,
+                diameter: 0.1,
+                outerId: (outer as Extract<Entity, { type: "rectangle" }>).id,
+              }
           : {
               id: uid(),
               type: "rectangle",
@@ -192,7 +203,7 @@ export default function Editor({
         d.handle === 0
           ? { ...next, x1: p.x, y1: p.y }
           : { ...next, x2: p.x, y2: p.y };
-    } else if (next.type === "circle") {
+    } else if (next.type === "circle" || next.type === "hole") {
       next = {
         ...next,
         diameter: Math.max(0.1, 2 * Math.hypot(p.x - next.x, p.y - next.y)),
@@ -288,7 +299,7 @@ export default function Editor({
       "data-id": e.id,
       stroke: e.id === selected ? "#e27525" : "#087d69",
       strokeWidth: view.w / 250,
-      fill: e.type === "line" ? "none" : "#27b69822",
+      fill: e.type === "line" || e.type === "hole" ? "none" : "#27b69822",
     };
     return e.type === "line" ? (
       <line
@@ -301,8 +312,18 @@ export default function Editor({
       />
     ) : e.type === "rectangle" ? (
       <rect {...props} x={e.x} y={e.y} width={e.width} height={e.height} />
-    ) : (
+    ) : e.type === "circle" ? (
       <circle {...props} cx={e.x} cy={e.y} r={e.diameter / 2} />
+    ) : (
+      <g>
+        <circle {...props} cx={e.x} cy={e.y} r={e.diameter / 2} strokeDasharray="3 2" />
+        <path
+          d={`M ${e.x - e.diameter / 3} ${e.y} H ${e.x + e.diameter / 3} M ${e.x} ${e.y - e.diameter / 3} V ${e.y + e.diameter / 3}`}
+          stroke={props.stroke}
+          strokeWidth={props.strokeWidth}
+          pointerEvents="none"
+        />
+      </g>
     );
   }
   return (
@@ -355,12 +376,15 @@ export default function Editor({
         </button>
       </div>
       <div className="toolbar">
-        {["Select", "Pan", "Line", "Rectangle", "Circle", "Calibrate"].map(
+        { ["Select", "Pan", "Line", "Rectangle", "Circle", "Hole", "Calibrate"].map(
           (t) => (
             <button
               className={tool === t ? "active" : ""}
               key={t}
-              disabled={t === "Calibrate" && !photo}
+              disabled={
+                (t === "Calibrate" && !photo) ||
+                (t === "Hole" && entity?.type !== "rectangle")
+              }
               onClick={() => {
                 setTool(t);
                 setPoints([]);
@@ -447,7 +471,7 @@ export default function Editor({
             compare !== "Photo" &&
             (entity.type === "rectangle"
               ? [{ x: entity.x + entity.width, y: entity.y + entity.height }]
-              : entity.type === "circle"
+              : entity.type === "circle" || entity.type === "hole"
                 ? [{ x: entity.x + entity.diameter / 2, y: entity.y }]
                 : anchors(entity)
             ).map((p, i) => (
@@ -626,7 +650,7 @@ export default function Editor({
           <>
             <div className="fields">
               {Object.entries(entity)
-                .filter(([k]) => !["id", "type"].includes(k))
+                .filter(([k]) => !["id", "type", "outerId"].includes(k))
                 .map(([k, v]) => (
                   <NumberField
                     key={k}
@@ -642,6 +666,9 @@ export default function Editor({
                 ))}
             </div>
             <div className="toolbar">
+              {entity.type === "hole" && (
+                <small>Hole in rectangle {entity.outerId}</small>
+              )}
               <button
                 onClick={() => {
                   const copy = { ...move(entity, 5, 5), id: uid() };
@@ -655,7 +682,13 @@ export default function Editor({
                 onClick={() => {
                   commit({
                     ...part,
-                    entities: part.entities.filter((e) => e.id !== selected),
+                    entities: part.entities.filter(
+                      (e) =>
+                        e.id !== selected &&
+                        !(entity.type === "rectangle" &&
+                          e.type === "hole" &&
+                          e.outerId === entity.id),
+                    ),
                   });
                   setSelected(undefined);
                 }}

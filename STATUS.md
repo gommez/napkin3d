@@ -2,7 +2,7 @@
 
 ## Current objective
 
-Provide a safe preview deployment for the current `lab` branch while preserving GitHub Pages production on `main`. The application direction remains: HOME leads to Automatic Project or Manual Project. Automatic Project is the future simplified primary workflow; Manual Project remains the current editor and advanced correction mode.
+Implement the zero-cost, browser-local Automatic Scanner milestone on `lab` while preserving GitHub Pages production on `main` and the existing Vercel LAB preview. HOME leads to Automatic Project or Manual Project. Automatic Project is the simplified workflow; Manual Project remains the editor and advanced correction mode.
 
 Automatic sketch interpretation is planned but not implemented.
 
@@ -12,11 +12,11 @@ Automatic sketch interpretation is planned but not implemented.
 
 ## Current branch
 
-`lab`. This deployment block changes only Vite build configuration and project status documentation. The previous application and test changes remain on `lab`; `main` was not modified.
+`lab`. This block changes only the scanner/model/editor/export surfaces and their documentation/tests. `main` was not modified.
 
 ## Last completed block
 
-Preview deployment preparation: Vercel builds use `/` at the deployment root when `VERCEL=1`; GitHub Pages builds retain `/napkin3d/`. The initial mobile MVP and HOME / AUTOMATIC / MANUAL entry point remain unchanged.
+Automatic Scanner Stage A and Stage B: explicit circular through-holes are now part of the parametric model, and the local scanner can detect a simple rectangle plus circular features, ask for unresolved measurements, confirm the result, and open the existing 3D/manual workflow. Vercel builds still use `/` and GitHub Pages builds retain `/napkin3d/`.
 
 ## What works
 
@@ -29,19 +29,22 @@ Preview deployment preparation: Vercel builds use `/` at the deployment root whe
 - Manual Project opens the existing project/editor workflow and can return to HOME without deleting or resetting saved data.
 - The parametric model in `src/model.ts` remains the source of truth; SVG and STL are derived exports.
 - The same source supports GitHub Pages production at `/napkin3d/` and Vercel previews at their deployment root.
+- Automatic processing runs locally with no external API, AI service, backend, authentication, or recurring operating cost.
+- Explicit `Hole` entities subtract material from a linked rectangle in the 2D editor, 3D viewer, SVG path, and STL output.
+- Automatic output cannot be confirmed until scale, hole diameters, and thickness are resolved.
 
 These statements are based on the current source and automated checks. Real-device behavior has not been reverified in this block.
 
 ## Known bugs
 
 - SVG export has been reported by the user as not working. It is not fixed in this block; the existing unit test only verifies SVG string generation, not the end-to-end browser download.
-- Automatic sketch interpretation does not exist yet.
+- The scanner is intentionally limited to simple deterministic raster fixtures: one axis-aligned rectangular contour and circular features. General perspective correction, arbitrary contours, and robust real-world photo interpretation are not implemented.
 - Real-device camera, downloads, and installation have not been verified in this block. Browser E2E verified storage persistence, touch gestures, downloads, and the existing Manual workflow.
 - The production build reports a chunk-size warning for a generated chunk larger than 500 kB.
 
 ## Current work
 
-This deployment block prepares the `lab` commit for a Vercel preview. Vercel is a separate preview deployment path; the existing GitHub Pages workflow remains the production path. No image analysis, OCR, vectorization, AI service, automatic 3D generation, or unrelated application change is included.
+This development block is complete for the approved scanner milestone. Stage A added explicit subtractive holes and v1-to-v2 persistence migration. Stage B added local raster preprocessing, deterministic rectangle/circle detection, uncertainty questions, confirmation, and creation of editable parametric geometry. No external service or dependency was added.
 
 ## Decisions pending
 
@@ -52,28 +55,30 @@ This deployment block prepares the `lab` commit for a Vercel preview. Vercel is 
 - Do not modify `main` without explicit approval.
 - Do not refactor the existing Manual Project unnecessarily.
 - Do not expand the Automatic Project shell into interpretation or generation without an explicit product decision.
+- Do not expand the scanner beyond its supported rectangular contour/circular feature milestone without a new validation block.
 - Do not fix SVG export yet.
 - Do not treat automatic interpretation as implemented.
 - Do not reconstruct the authoritative model from SVG or STL.
 
 ## Next recommended action
 
-Use the Vercel preview URL to test `lab`. Keep `main` as the only GitHub Pages production source. Do not begin the next Napkin3D development block until separately instructed.
+Test the LAB preview on a real phone with a simple front-facing rectangular sketch and one circular hole. Keep `main` as the only GitHub Pages production source. Do not begin the next Napkin3D development block until separately instructed.
 
 ## Last verification
 
 On `lab`, after this development block:
 
-- `npm test`: passed, 2 files and 8 tests.
+- `npm test`: passed, 3 files and 14 tests.
 - `npm run lint`: passed.
 - `npm run build`: passed; Vite emitted only the existing chunk-size warning.
-- `npm run test:e2e`: passed, 2 mobile browser tests. This verified HOME, Automatic shell, Manual loading, existing touch editing, reload persistence, and return to HOME without losing the project.
+- `npm run test:e2e` with a fresh server: passed, 3 mobile browser tests. This verified HOME, Manual loading, existing touch editing, reload persistence, local scanner detection, unresolved-measurement gating, confirmation, 3D opening, source-photo retention, and manual hole editing.
 - `git diff --check`: passed.
 - `npm run build` with default environment: passed; generated asset URLs use `/napkin3d/` for GitHub Pages.
 - `VERCEL=1 npm run build`: passed; generated asset URLs use `/` for a Vercel deployment root.
+- `npx playwright test e2e/workflow.spec.ts -g "automatic scanner"`: passed, 1 test. This verified local image processing, unresolved-measurement gating, confirmation, 3D opening, and manual hole diameter editing.
 - Real-device smoke testing: not run.
 
-Deployment architecture: `main` -> GitHub Pages -> `https://gommez.github.io/napkin3d/`; `lab` -> Vercel Preview -> separate Vercel deployment URL. The `lab` commit must be pushed before Vercel can build it. Vercel authentication/project connection and the final preview URL are pending until the deployment is created.
+Deployment architecture: `main` -> GitHub Pages -> `https://gommez.github.io/napkin3d/`; `lab` -> Vercel Preview -> `https://napkin3d-2xjcoomoz-gommez.vercel.app`. Automatic GitHub-to-Vercel deployment remains unconfigured; this preview was deployed manually from `lab`.
 
 The first E2E attempt exposed only a test navigation assumption after reload; the test was corrected to re-enter Manual and then passed. No product regression was found.
 

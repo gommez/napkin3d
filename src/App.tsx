@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import AutomaticScanner from "./AutomaticScanner";
 import Editor from "./Editor";
 import {
   newPart,
@@ -6,6 +7,7 @@ import {
   uid,
   type Document,
   type Part,
+  type Photo,
   type Project,
 } from "./model";
 import { loadDocument, saveDocument } from "./storage";
@@ -14,7 +16,7 @@ const named = (question: string, initial = "") =>
   prompt(question, initial)?.trim();
 type AppMode = "HOME" | "AUTOMATIC" | "MANUAL";
 export default function App() {
-  const [doc, setDoc] = useState<Document>({ version: 1, projects: [] }),
+  const [doc, setDoc] = useState<Document>({ version: 2, projects: [] }),
     [ready, setReady] = useState(false),
     [status, setStatus] = useState("Loading…"),
     [projectId, setProjectId] = useState(""),
@@ -99,6 +101,24 @@ export default function App() {
     setPartId(p.id);
     setMode("2D");
   }
+  function openAutomaticPart(scannedPart: Part, sourceImage: Photo) {
+    const automaticProjectId = uid();
+    const folderId = uid();
+    const part = { ...scannedPart, folderId, sourceImage, updatedAt: now() };
+    const automaticProject: Project = {
+      id: automaticProjectId,
+      name: "Automatic Project",
+      folders: [{ id: folderId, name: "Parts" }],
+      parts: [part],
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    setDoc((d) => ({ ...d, projects: [...d.projects, automaticProject] }));
+    setProjectId(automaticProjectId);
+    setPartId(part.id);
+    setMode("3D");
+    setAppMode("MANUAL");
+  }
   async function exportFile(format: "SVG" | "STL") {
     if (!part) return;
     try {
@@ -140,20 +160,10 @@ export default function App() {
           </div>
         </main>
       ) : appMode === "AUTOMATIC" ? (
-        <main className="entry-screen automatic-screen">
-          <button className="back-button" onClick={() => setAppMode("HOME")}>
-            ← Inicio
-          </button>
-          <h2>NUEVA PIEZA</h2>
-          <div className="entry-actions">
-            <button className="entry-choice entry-choice-primary">
-              <strong>HACER FOTO</strong>
-            </button>
-            <button className="entry-choice">
-              <strong>ELEGIR FOTO</strong>
-            </button>
-          </div>
-        </main>
+        <AutomaticScanner
+          onBack={() => setAppMode("HOME")}
+          onComplete={openAutomaticPart}
+        />
       ) : (
         <>
           <header>
