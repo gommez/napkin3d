@@ -68,3 +68,24 @@ describe("local assisted scanner", () => {
     expect(part.entities[1]).toMatchObject({ type: "hole", x: 40, y: 30, diameter: 10, outerId: part.entities[0].id });
   });
 });
+
+describe("temporary diagnostic instrumentation (synthetic pixels, not OCR evidence)", () => {
+  it("preserves scan output and reports component positions, preprocessing and absent OCR", () => {
+    const { data, width, height } = fixture();
+    data[0] = data[1] = data[2] = 0;
+    let trace: import("./scanner").RasterDiagnostics | undefined;
+    const observed = scanRaster(data, width, height, value => { trace = value; });
+    expect(observed).toEqual(scanRaster(data, width, height));
+    expect(trace?.preprocessing).toEqual({ grayMin: 0, grayMax: 255, threshold: 0, connectivity: 8, minimumPixels: 4 });
+    expect(trace?.components).toContainEqual({ id: "component-1", pixels: 1, minX: 0, minY: 0, maxX: 0, maxY: 0, retained: false });
+    expect(trace?.components[1]).toMatchObject({ minX: 10, minY: 10, maxX: 90, maxY: 70, retained: true });
+    expect(trace?.ocr).toEqual({ status: "NOT_IMPLEMENTED", textRegions: [], recognizedText: [] });
+    expect(trace?.association).toEqual({ status: "NOT_IMPLEMENTED", matches: [] });
+  });
+
+  it("reports evidence even when geometry detection fails", () => {
+    let trace: import("./scanner").RasterDiagnostics | undefined;
+    expect(() => scanRaster(new Uint8ClampedArray(100 * 80 * 4).fill(255), 100, 80, value => { trace = value; })).toThrow();
+    expect(trace?.components).toEqual([]);
+  });
+});

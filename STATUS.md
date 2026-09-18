@@ -88,3 +88,141 @@ The first E2E attempt exposed only a test navigation assumption after reload; th
 ## Updated
 
 2026-09-18
+## LAB diagnostic block — 2026-09-18
+
+This entry supersedes earlier contradictory claims that automatic interpretation
+is wholly absent or that OCR implementation has been selected. The existing
+assisted raster geometry scanner is implemented; OCR and text association are
+not. Existing model/holes, deployment boundaries and manual editor decisions
+remain unchanged.
+
+- Started on `lab`, latest commit `a198d49` (`chore: trigger Vercel preview`).
+  There was already an uncommitted native camera/gallery input change in
+  `src/AutomaticScanner.tsx`; it was preserved.
+- Added a temporary collapsible LAB diagnostic panel in AutomaticScanner,
+  including geometry failures, original photo overlay, ink component boxes,
+  preprocessing parameters, explicit absent OCR/association stages, manual
+  answers, unresolved properties and the exact Part prepared for confirmation.
+- The scanner still performs the same geometry calculations. No OCR dependency,
+  recognition fix, association heuristic, thickness inference, model schema
+  change, touch editor change, CAD feature or deployment was introduced.
+- Text is not lost downstream: it is never recognized. Intermediate ink
+  components previously disappeared after geometric filtering; the optional
+  diagnostic callback now exposes all components including <4-pixel rejects.
+- Diagnostic data is local and ephemeral. Full original photo remains in memory
+  during review. Large/noisy photos can yield many component boxes and a large
+  JSON report; this temporary inspector is not a text detector.
+- Instructions and detailed findings: `docs/SCANNER_DIAGNOSTICS.md`.
+- TEST-001 photo and real-device validation were not available/performed.
+  Synthetic fixtures verify instrumentation only, not real OCR.
+
+### Decisions pending after diagnostics
+
+Choose an OCR/text-localization approach only after reviewing TEST-001 evidence.
+No technology choice or new association policy has been made. A distant number
+must not yet be inferred as thickness. The next block needs explicit approval
+for recognition work; this block stops at diagnostics.
+
+### Diagnostic block verification
+
+- `npm test`: passed, 4 files / 19 tests.
+- `npm run lint`: passed.
+- `npm run build`: passed; existing >500 kB chunk warning remains.
+- `CI=1 npm run test:e2e`: passed, 5 mobile Chromium tests, including
+  diagnostic overlay/JSON, unresolved inputs, prepared model and existing
+  photo import, touch editing, calibration, undo/redo, persistence and exports.
+  First sandbox attempt failed to bind port 4173 (EPERM); authorized execution
+  outside the sandbox passed. No browser/dependency installation was needed.
+- `git diff --check`: passed.
+- No commit, push, merge, main changes or production deployment.
+
+## Investigación OCR local — 2026-09-18
+
+- Investigación documental solamente sobre `lab`, commit `a198d49`; preservados
+  los cambios sin commit del diagnóstico. No se modificó el pipeline ni se
+  instalaron dependencias/modelos. Informe: `docs/OCR_SELECTION.md`.
+- Comparados TextDetector nativo, OCRad.js, Tesseract.js, PaddleOCR.js y un
+  reconocedor específico. Tesseract.js ofrece cajas pero su FAQ descarta
+  manuscrito fiable. PaddleOCR tiene SDK oficial browser (fuente 0.4.2),
+  polígonos/texto/score y modelos PP-OCRv6 tiny/small; implica ORT + OpenCV.js.
+- Recomendación pendiente: piloto aislado PaddleOCR.js + PP-OCRv6 tiny en
+  worker/WASM CPU, assets locales; Tesseract como alternativa si se acepta
+  explícitamente el límite de manuscrito. No hay ganador medido en TEST-001.
+- Componentes conectados pueden proponer recortes, pero no deben excluir
+  puntos/comas pequeños, trazos unidos a cotas o números alejados. Comparar
+  imagen global y crops del original; mantener transformaciones hasta píxeles
+  originales. La asociación dimensional sigue diferida.
+- Peso y latencias son estimaciones documentales, no benchmarks locales.
+  Ningún motor fue ejecutado; TEST-001 y móvil real siguen pendientes.
+- Cero coste por inferencia es viable; PWA necesita cachear explícitamente
+  worker, WASM y modelos del mismo origen. El SW actual no prepara esos assets.
+
+### Decisions pending — selección OCR
+
+Solicitar decisión antes de añadir la dependencia importante: piloto PaddleOCR.js
+con PP-OCRv6 tiny (recomendado), o Tesseract.js aceptando impreso como alcance
+fiable. Alternativa propia implica dataset/entrenamiento y queda diferida.
+No se tomó ni implementó una decisión arquitectónica. Próximo paso: autorización
+del piloto y validación separada de OCR/localización en TEST-001.
+
+### Verificación del bloque de investigación
+
+- Solo se añadieron `docs/OCR_SELECTION.md` y esta actualización de `STATUS.md`.
+- `npm test`: 19 pruebas / 4 archivos pasan; `npm run lint`: pasa;
+  `npm run build`: pasa con el aviso previo de chunk >500 kB;
+  `git diff --check`: pasa.
+- No se repitió E2E en este bloque documental; los 5 E2E del bloque diagnóstico
+  siguen siendo la última verificación móvil automatizada, no pruebas OCR.
+- Sin instalación, commit, push, merge ni deployment. STOP antes del piloto.
+
+## Piloto PaddleOCR local — 2026-09-18
+
+- Se mantuvieron todos los cambios previos del diagnóstico y se integró, solo
+  en `lab`, `@paddleocr/paddleocr-js` `0.4.2` con modelos PP-OCRv6 tiny.
+  ONNX Runtime Web quedó fijado por override a `1.24.3` para coincidir con el
+  worker del SDK.
+- La importación es dinámica: PaddleOCR no se carga al abrir Napkin3D, solo al
+  procesar una foto del Automatic Scanner. El pipeline geométrico sigue siendo
+  independiente y recibe el mismo canvas; no se usan connected components como
+  detector OCR.
+- OCR ejecuta localmente sobre la foto completa en el navegador, con backend
+  WASM y un hilo. No hay API, backend, key ni CDN de runtime/modelos en la
+  configuración de la aplicación. Se sirven desde `public/ocr/` los dos tar de
+  modelos oficiales y los cuatro assets ORT WASM/JSEP requeridos.
+- La salida real del SDK es `items[]: { poly, text, score }`. Napkin3D guarda
+  además `id`, `bbox`, `coordinateSpace: original-image-pixels`, tiempos,
+  backend/proveedor y versión del motor. La transformación escala las esquinas
+  del resultado del canvas reducido a las dimensiones originales; no convierte
+  a mm ni modifica `Part`.
+- El diagnóstico muestra overlay magenta con texto (`[80]`, etc. cuando el
+  motor los reconoce), tabla texto/x/y/width/height/score interno y métricas de
+  inicialización, detección, reconocimiento y total. No muestra score al
+  usuario como porcentaje. `ASOCIACIÓN: NOT_IMPLEMENTED` permanece explícito.
+- Se añadió una prueba E2E sintética impresa que verificó detecciones reales,
+  polígonos, cajas positivas y coordenadas originales. No demuestra manuscrito
+  ni TEST-001 físico. La prueba inicial encontró un asset
+  `ort-wasm-simd-threaded.jsep.mjs` faltante; se añadió junto a su WASM local.
+- Assets: `public/ocr/models/` 6,318,080 bytes; `public/ocr/ort/` 37,447,368
+  bytes (43,765,448 bytes en total). `dist/` queda aproximadamente en 88 MB.
+  La build conserva el aviso de
+  chunks grandes y el entorno necesita más memoria para completar Vite.
+
+### Verificación del piloto
+
+- `npm test`: 19 pruebas / 4 archivos pasan.
+- `npm run lint`: pasa.
+- `npm run build`: generado con los assets OCR locales; Vite conserva el aviso
+  de chunks >500 kB y advertencias de externalización `fs/path/crypto` desde
+  OpenCV.js. La build en este entorno requiere memoria elevada para terminar.
+- `CI=1 npm run test:e2e`: 6 pruebas pasan, incluyendo el diagnóstico y el
+  E2E sintético de OCR. El test usa Chromium
+  y no es evidencia de manuscrito ni de TEST-001 real.
+- `git diff --check`: pasa.
+- Sin commit, push, merge, despliegue ni cambios en `main`.
+
+### Próximo paso recomendado
+
+Probar TEST-001 impreso y manuscrito en un móvil real, registrar detecciones,
+posiciones, tiempos y errores de inicialización, y comprobar arranque offline
+con los assets ya servidos localmente. No implementar asociación semántica hasta
+revisar esas detecciones.

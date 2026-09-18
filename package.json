@@ -13,6 +13,7 @@
     "format": "prettier --write src docs *.json *.ts *.js *.md .github/workflows/*.yml"
   },
   "dependencies": {
+    "@paddleocr/paddleocr-js": "0.4.2",
     "idb": "^8.0.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
@@ -34,5 +35,8 @@
     "typescript-eslint": "^8.42.0",
     "vite": "^7.1.0",
     "vitest": "^4.1.11"
+  },
+  "overrides": {
+    "onnxruntime-web": "1.24.3"
   }
 }

@@ -213,6 +213,37 @@ main {
 .scan-summary strong {
   font-size: 22px;
 }
+.scan-diagnostics {
+  width: 100%;
+  margin: 12px 0;
+  padding: 10px;
+  border: 1px solid #c8d4cb;
+  border-radius: 9px;
+  background: #f5f8f1;
+  color: #183d37;
+  font-size: 12px;
+}
+.scan-diagnostics summary {
+  cursor: pointer;
+  min-height: 28px;
+  font-weight: 700;
+}
+.scan-diagnostics table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  background: white;
+}
+.scan-diagnostics th,
+.scan-diagnostics td {
+  border: 1px solid #d7e0d7;
+  padding: 4px;
+  text-align: right;
+}
+.scan-diagnostics th:first-child,
+.scan-diagnostics td:first-child {
+  text-align: left;
+}
 .back-button {
   align-self: flex-start;
   min-height: 44px;

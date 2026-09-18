@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   partFromScan,
   resolveScan,
@@ -6,7 +6,9 @@ import {
   type ScanAnswers,
   type ScanResult,
 } from "./scanner";
+import ScanDiagnostics, { type ScanCapture } from "./ScanDiagnostics";
 import type { Part, Photo } from "./model";
+import { recognizePhoto } from "./ocr";
 
 export default function AutomaticScanner({
   onBack,
@@ -15,8 +17,7 @@ export default function AutomaticScanner({
   onBack: () => void;
   onComplete: (part: Part, photo: Photo) => void;
 }) {
-  const camera = useRef<HTMLInputElement>(null);
-  const gallery = useRef<HTMLInputElement>(null);
+  const [capture, setCapture] = useState<ScanCapture>();
   const [image, setImage] = useState<string>();
   const [scan, setScan] = useState<ScanResult>();
   const [answers, setAnswers] = useState<ScanAnswers>({
@@ -26,10 +27,16 @@ export default function AutomaticScanner({
   const [error, setError] = useState("");
   const resolution = scan ? resolveScan(scan, answers) : undefined;
 
+  const preparedPart = useMemo(() => scan && resolveScan(scan, answers).ready ? partFromScan(scan, answers) : undefined, [scan, answers]);
+  const diagnostics = capture && <ScanDiagnostics capture={capture} scan={scan} answers={answers} part={preparedPart} error={error} />;
+
   async function process(file?: File) {
     if (!file) return;
+    setScan(undefined);
+    setCapture(undefined);
+    setError("");
+    const url = URL.createObjectURL(file);
     try {
-      const url = URL.createObjectURL(file);
       const photo = new Image();
       photo.src = url;
       await photo.decode();
@@ -38,20 +45,32 @@ export default function AutomaticScanner({
       canvas.width = Math.max(8, Math.round(photo.width * scale));
       canvas.height = Math.max(8, Math.round(photo.height * scale));
       canvas.getContext("2d")!.drawImage(photo, 0, 0, canvas.width, canvas.height);
+      const original = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error("No se pudo leer la fotografía original."));
+        reader.readAsDataURL(file);
+      });
+      const nextCapture: ScanCapture = { original, originalWidth: photo.width, originalHeight: photo.height, width: canvas.width, height: canvas.height };
+      setCapture(nextCapture);
+      void recognizePhoto(canvas, { width: photo.width, height: photo.height }).then((ocr) => setCapture((current) => current ? { ...current, ocr } : current));
       const result = scanRaster(
         canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height)
           .data,
         canvas.width,
         canvas.height,
+        (raster) => setCapture({ ...nextCapture, raster }),
       );
       setImage(canvas.toDataURL("image/jpeg", 0.85));
       setScan(result);
       setAnswers({ holeDiametersMm: {} });
       setConfirmed(false);
       setError("");
-      URL.revokeObjectURL(url);
+
     } catch (e) {
       setError((e as Error).message || "No entiendo completamente este contorno.");
+    } finally {
+      URL.revokeObjectURL(url);
     }
   }
 
@@ -67,37 +86,35 @@ export default function AutomaticScanner({
         </button>
         <h2>NUEVA PIEZA</h2>
         <div className="entry-actions">
-          <button
-            className="entry-choice entry-choice-primary"
-            onClick={() => camera.current?.click()}
-          >
+          <label className="entry-choice entry-choice-primary" htmlFor="automatic-camera-input">
             <strong>HACER FOTO</strong>
-          </button>
-          <button className="entry-choice" onClick={() => gallery.current?.click()}>
+            <input
+              id="automatic-camera-input"
+              className="native-file-input"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(e) => {
+                void process(e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+          </label>
+          <label className="entry-choice" htmlFor="automatic-gallery-input">
             <strong>ELEGIR FOTO</strong>
-          </button>
+            <input
+              id="automatic-gallery-input"
+              className="native-file-input"
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                void process(e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+          </label>
         </div>
-        <input
-          ref={camera}
-          hidden
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={(e) => {
-            void process(e.target.files?.[0]);
-            e.target.value = "";
-          }}
-        />
-        <input
-          ref={gallery}
-          hidden
-          type="file"
-          accept="image/*"
-          onChange={(e) => {
-            void process(e.target.files?.[0]);
-            e.target.value = "";
-          }}
-        />
+        {diagnostics}
         {error && <p className="notice" role="alert">{error}</p>}
       </main>
     );
@@ -110,6 +127,7 @@ export default function AutomaticScanner({
           ← Revisar
         </button>
         <h2>CONFIRMA TU PIEZA</h2>
+        {diagnostics}
         <div className="scan-summary">
           <strong>
             {resolution!.outer.width * resolution!.scaleMmPerPixel!} × {resolution!.outer.height * resolution!.scaleMmPerPixel!} mm
@@ -123,7 +141,7 @@ export default function AutomaticScanner({
         <button
           className="entry-choice entry-choice-primary"
           onClick={() => {
-            const part = partFromScan(scan, answers);
+            const part = preparedPart!;
             const sourceImage = {
               data: image!,
               width: scan.imageWidth,
@@ -147,6 +165,7 @@ export default function AutomaticScanner({
         ← Inicio
       </button>
       <h2>REVISA EL BOCETO</h2>
+      {diagnostics}
       {image && <img className="scan-photo" src={image} alt="Foto del boceto" />}
       <svg
         className="scan-preview"

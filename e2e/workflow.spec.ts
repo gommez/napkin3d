@@ -13,8 +13,8 @@ test("mobile workflow on the production Pages path", async ({ page }) => {
   ).toBeVisible();
   await page.getByRole("button", { name: "PROYECTO AUTOMÁTICO" }).click();
   await expect(page.getByRole("heading", { name: "NUEVA PIEZA" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "HACER FOTO" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "ELEGIR FOTO" })).toBeVisible();
+  await expect(page.locator('label[for="automatic-camera-input"]')).toBeVisible();
+  await expect(page.locator('label[for="automatic-gallery-input"]')).toBeVisible();
   await page.getByRole("button", { name: "← Inicio" }).click();
   await page.getByRole("button", { name: "PROYECTO MANUAL" }).click();
   await page.getByRole("button", { name: "Create your first project" }).click();
@@ -202,9 +202,23 @@ test("automatic scanner resolves a rectangular part with a circular hole", async
       ),
     });
   await expect(page.getByRole("heading", { name: "REVISA EL BOCETO" })).toBeVisible();
+  await page.getByText("LAB · Diagnóstico temporal", { exact: true }).click();
+  const diagnostic = page.getByTestId("scan-diagnostic-json");
+  await expect.poll(async () => JSON.parse((await diagnostic.textContent())!).ocr.status, { timeout: 60000 }).toMatch(/READY|ERROR/);
+  let report = JSON.parse((await diagnostic.textContent())!);
+  expect(["READY", "ERROR"]).toContain(report.ocr.status);
+  expect(report.association).toBe("NOT_IMPLEMENTED");
+  expect(report.unresolved).toContain("thicknessMm");
+  expect(report.parametricModel).toBeNull();
+  await expect(page.getByRole("img", { name: "Diagnóstico sobre fotografía original" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
   await page.getByLabel("Ancho exterior (mm)").fill("80");
   await page.getByLabel("Diámetro del agujero 1 (mm)").fill("10");
   await page.getByLabel("¿Qué grosor tendrá la pieza? (mm)").fill("5");
+  report = JSON.parse((await diagnostic.textContent())!);
+  expect(report.unresolved).toEqual([]);
+  expect(report.parametricModel.depth).toBe(5);
+  expect(report.parametricModel.entities[0].width).toBe(80);
   await page.getByRole("button", { name: "CONTINUAR" }).click();
   await expect(page.getByRole("heading", { name: "CONFIRMA TU PIEZA" })).toBeVisible();
   await page.getByRole("button", { name: "CONFIRMAR PIEZA" }).click();
@@ -334,4 +348,23 @@ test("automatic photo actions use separate native file inputs", async ({
   await page.locator('label[for="automatic-gallery-input"]').click();
   await (await galleryChooser).setFiles(image);
   await expect(page.getByRole("heading", { name: "REVISA EL BOCETO" })).toBeVisible();
+});
+
+test("local PaddleOCR returns text detections with positions for a printed synthetic image", async ({ page }) => {
+  await page.goto("/napkin3d/");
+  await page.getByRole("button", { name: "PROYECTO AUTOMÁTICO" }).click();
+  await page.locator("input[type=file]").first().setInputFiles({
+    name: "printed-dimensions.svg",
+    mimeType: "image/svg+xml",
+    buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="600" height="400" fill="white"/><rect x="100" y="100" width="400" height="220" fill="none" stroke="black" stroke-width="4"/><text x="250" y="75" font-family="Arial" font-size="42" fill="black">80</text><text x="45" y="220" font-family="Arial" font-size="42" fill="black">40</text><text x="450" y="370" font-family="Arial" font-size="42" fill="black">5</text></svg>'),
+  });
+  await expect(page.getByRole("heading", { name: "REVISA EL BOCETO" })).toBeVisible();
+  await page.getByText("LAB · Diagnóstico temporal", { exact: true }).click();
+  const diagnostic = page.getByTestId("scan-diagnostic-json");
+  await expect.poll(async () => JSON.parse((await diagnostic.textContent())!).ocr.status, { timeout: 60000 }).toBe("READY");
+  const report = JSON.parse((await diagnostic.textContent())!);
+  expect(report.ocr.coordinateSpace).toBe("original-image-pixels");
+  expect(report.ocr.detections.length).toBeGreaterThan(0);
+  expect(report.ocr.detections.every((d: { bbox: { width: number; height: number }; polygon: unknown[]; text: string }) => d.text && d.bbox.width > 0 && d.bbox.height > 0 && d.polygon.length >= 4)).toBeTruthy();
+  expect(report.association).toBe("NOT_IMPLEMENTED");
 });

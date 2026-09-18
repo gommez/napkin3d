@@ -43,12 +43,25 @@ export type ScanResolution = {
   thicknessMm?: number;
 };
 
-type Component = {
+export type Component = {
   pixels: number;
   minX: number;
   minY: number;
   maxX: number;
   maxY: number;
+};
+
+export type RasterDiagnostics = {
+  preprocessing: {
+    grayMin: number;
+    grayMax: number;
+    threshold: number;
+    connectivity: 8;
+    minimumPixels: 4;
+  };
+  components: (Component & { id: string; retained: boolean })[];
+  ocr: { status: "NOT_IMPLEMENTED"; textRegions: []; recognizedText: [] };
+  association: { status: "NOT_IMPLEMENTED"; matches: [] };
 };
 
 function otsuThreshold(values: number[]) {
@@ -81,7 +94,7 @@ function otsuThreshold(values: number[]) {
   return threshold;
 }
 
-function components(data: Uint8ClampedArray, width: number, height: number) {
+function components(data: Uint8ClampedArray, width: number, height: number, report?: (trace: RasterDiagnostics) => void) {
   const gray = new Array<number>(width * height);
   for (let i = 0; i < gray.length; i++) {
     const offset = i * 4;
@@ -102,6 +115,7 @@ function components(data: Uint8ClampedArray, width: number, height: number) {
   const dark = normalized.map((value) => value <= threshold);
   const visited = new Uint8Array(dark.length);
   const result: Component[] = [];
+  const all: RasterDiagnostics["components"] = [];
   for (let start = 0; start < dark.length; start++) {
     if (!dark[start] || visited[start]) continue;
     const queue = [start];
@@ -134,9 +148,16 @@ function components(data: Uint8ClampedArray, width: number, height: number) {
         }
       }
     }
+    all.push({ pixels, minX, minY, maxX, maxY, id: `component-${all.length + 1}`, retained: pixels >= 4 });
     if (pixels >= 4)
       result.push({ pixels, minX, minY, maxX, maxY });
   }
+  report?.({
+    preprocessing: { grayMin: min, grayMax: max, threshold, connectivity: 8, minimumPixels: 4 },
+    components: all,
+    ocr: { status: "NOT_IMPLEMENTED", textRegions: [], recognizedText: [] },
+    association: { status: "NOT_IMPLEMENTED", matches: [] },
+  });
   return result;
 }
 
@@ -144,10 +165,11 @@ export function scanRaster(
   data: Uint8ClampedArray,
   width: number,
   height: number,
+  report?: (trace: RasterDiagnostics) => void,
 ): ScanResult {
   if (width < 8 || height < 8 || data.length < width * height * 4)
     throw new Error("La imagen es demasiado pequeña para interpretar una pieza.");
-  const detected = components(data, width, height).sort(
+  const detected = components(data, width, height, report).sort(
     (a, b) =>
       (b.maxX - b.minX) * (b.maxY - b.minY) -
       (a.maxX - a.minX) * (a.maxY - a.minY),
