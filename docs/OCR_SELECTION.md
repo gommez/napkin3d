@@ -7,6 +7,9 @@ Documento de investigación histórica; el piloto posterior está integrado.
 TEST-001 físico en iPhone localizó regiones pero falló transcripción manuscrita.
 TEST-002 implementado, pendiente de prueba física: véase TEST_002.md. La
 asociación posterior se documenta en ASSOCIATION_V0.md.
+La validación física posterior de números simples en dos dibujos (`50 × 30` y
+`27 × 82`) queda registrada como TEST-003; es un PASS limitado y no amplía el
+alfabeto técnico ni demuestra reconocimiento universal.
 
 ## Recomendación
 

@@ -1,11 +1,11 @@
 # LAB temporary scanner diagnostics
 
 Current LAB state: geometry instrumentation plus local PaddleOCR baseline,
-TEST-002 regional calibration and ASOCIACIÓN V0 for outer rectangle width/height.
-The physical iPhone follow-up recognized `50` and `30` with positions, enabling
-the first evidence-based association block. TEST-002 regional calibration remains
-available as a diagnostic. See `ASSOCIATION_V0.md` for the current association
-contract. The geometry detector itself remains unchanged.
+TEST-002 regional calibration, OCR numeric TEST-003 evidence, ASOCIACIÓN V0 for
+outer rectangle width/height and PREPROCESSING V1 A/B diagnostics. TEST-002
+regional calibration remains available as a diagnostic. See `TEST_003.md`,
+`ASSOCIATION_V0.md` and `PREPROCESSING_V1.md`. The geometry detector remains
+rectangular/circular legacy code; ClosedContour V0 is not implemented.
 
 ## Local TEST-001 procedure
 
@@ -36,11 +36,13 @@ change the stored schema. The original photo stays in browser memory only.
 
 1. Browser image decoding; canvas resized to maximum side 1000 px, each axis
    at least 8 px. Separate X/Y factors map raster coordinates to original image.
-2. Rounded grayscale 0.299R + 0.587G + 0.114B; min/max normalization to 0–255;
-   Otsu threshold; dark pixels <= threshold; 8-connected components.
+2. The image produces two generic geometry maps. A is grayscale min/max plus
+   global Otsu and remains the detector input. B is grayscale plus a relative
+   separable box-blur illumination estimate, local correction, conservative
+   threshold and binary `InkMap`. Both maps are retained.
 3. All component min/max bounds (inclusive), pixel counts and retention flags
-   are now observable. Components smaller than 4 pixels are discarded by the
-   existing detector. Previously intermediate components were not returned.
+   are reported for A and B. The current detector keeps A components with at
+   least 4 pixels; small components from both maps remain observable.
 4. Retained components are sorted by bounding area. First bounding box spanning
    at least 20% of each image axis supplies the outer rectangle. Other roughly
    square, smaller components whose centres lie inside become hole candidates.
@@ -59,6 +61,15 @@ change the stored schema. The original photo stays in browser memory only.
    resolved X/Y scales, while hole diameters and thickness require confirmation.
    The read-only diagnostic displays that same prepared Part, including IDs.
 
+## PREPROCESSING A/B
+
+`LAB · Diagnóstico temporal` includes original, grayscale, illumination,
+corrected and binary map previews, effective parameters, A/B component counts,
+foreground ratios, tiny-component counts, largest component and timings. The
+JSON includes summaries and both geometry proposals without serializing the
+large raster arrays. B is diagnostic only until physical illumination tests
+show that it preserves drawn strokes while reducing shadow candidates.
+
 JPEG quality 0.85 is used for the photo attached to the part, after the canvas
 pixels were scanned; it is not an OCR preprocessing step. No deskewing or perspective correction is present. TEST-002 separately crops
 baseline text regions from the original image for local OCR variants.
@@ -70,7 +81,14 @@ geometry failure visibility, association evidence and unresolved/model values.
 Mobile Chromium E2E checks diagnostic UI and existing workflows. Automated tests
 still do not prove broad handwritten OCR quality.
 
-Next: physically verify ASOCIACIÓN V0 on iPhone with the known `50 × 30` sketch:
+Next: physically verify PREPROCESSING V1 on iPhone with uneven illumination and
+then verify ASOCIACIÓN V0 on the known `50 × 30` sketch:
 check that `50` maps to outer width, `30` maps to outer height, only thickness is
 requested, and no distant number becomes thickness. Distant-number-to-thickness
 inference remains deferred.
+
+TEST-003 records physical numeric recognition evidence for `50 × 30` and
+`27 × 82`; it does not validate symbols, decimals or arbitrary geometry. The
+next future drawing is TEST-004, a hand-drawn T-like closed polygonal contour
+with several segments and surrounding dimensions. It is pending and has no
+PASS result.

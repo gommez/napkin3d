@@ -1,7 +1,9 @@
 # TEST-002: calibración OCR por regiones
 
-Implementado en `lab`; aceptación manuscrita física **PENDIENTE**. No hay nueva
-asociación dimensional, modificación automática de Part ni cambio geométrico.
+Implementado en `lab` como bloque histórico de calibración regional. Sus
+variantes y su diagnóstico A/B siguen disponibles, pero la evidencia física
+numérica posterior se registra en `TEST_003.md`. No hay modificación automática
+de `Part` fuera de Asociación V0 ni cambio geométrico en TEST-002.
 
 ## Comparación reproducible
 

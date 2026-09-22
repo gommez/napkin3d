@@ -244,6 +244,26 @@ main {
 .scan-diagnostics td:first-child {
   text-align: left;
 }
+.preprocessing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.5rem;
+}
+.preprocessing-grid figure {
+  margin: 0;
+  min-width: 0;
+}
+.preprocessing-grid img {
+  display: block;
+  width: 100%;
+  image-rendering: pixelated;
+  border: 1px solid #cbd8d3;
+  background: #fff;
+}
+.preprocessing-grid figcaption {
+  font-size: 0.75rem;
+  text-align: center;
+}
 .back-button {
   align-self: flex-start;
   min-height: 44px;

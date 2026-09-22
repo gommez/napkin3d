@@ -4,9 +4,10 @@
 
 Implement the zero-cost, browser-local Automatic Scanner milestone on `lab` while preserving GitHub Pages production on `main` and the existing Vercel LAB preview. HOME leads to Automatic Project or Manual Project. Automatic Project is the simplified workflow; Manual Project remains the editor and advanced correction mode.
 
-Assisted raster geometry scanning, local diagnostic OCR and ASOCIACIÓN V0 for
-outer rectangle width/height are implemented. Broader text-to-geometry
-association remains limited and diagnostic.
+Assisted raster geometry scanning, local diagnostic OCR, OCR numeric TEST-003
+evidence, ASOCIACIÓN V0 for outer rectangle width/height and PREPROCESSING V1
+A/B diagnostics are implemented. Broader text-to-geometry association and
+arbitrary contour recognition remain limited and diagnostic.
 
 ## Stable production
 
@@ -43,6 +44,9 @@ These statements are based on the current source and automated checks. Real-devi
 - The scanner is intentionally limited to simple deterministic raster fixtures: one axis-aligned rectangular contour and circular features. General perspective correction, arbitrary contours, and robust real-world photo interpretation are not implemented.
 - Real-device camera, downloads, and installation have not been verified in this block. Browser E2E verified storage persistence, touch gestures, downloads, and the existing Manual workflow.
 - The production build reports a chunk-size warning for a generated chunk larger than 500 kB.
+- Uneven illumination can create many false geometric/hole candidates in the
+  legacy detector. PREPROCESSING V1 exposes a normalized `InkMap` comparison,
+  but its physical benefit is not yet accepted as the functional detector.
 - Real-device acceptance previously found that both Automatic Scanner image actions did nothing; this block replaces unreliable hidden-input programmatic activation with direct native label activation.
 - DirectEditView is automated-test verified but has not yet passed real-device acceptance on iPhone or Android.
 
@@ -63,6 +67,9 @@ This block adds DirectEditView as the primary 2D editing experience. It uses the
 - Do not fix SVG export yet.
 - Do not treat semantic text-to-dimension association as implemented.
 - Do not reconstruct the authoritative model from SVG or STL.
+- Do not treat PREPROCESSING V1 or its B proposal as ClosedContour V0; the
+  current functional detector still consumes A and remains rectangle/circle
+  specific.
 
 ## Next recommended action
 
@@ -498,3 +505,77 @@ solo se guarda el modelo paramétrico confirmado.
   en JSON, verificar que `50` y `30` son `AUTO_ASSIGNED/EXPLICIT`, que la pieza
   resultante es exactamente 50 × 30 mm y que números alejados no se asignan a
   grosor ni a otras features.
+
+## TEST-003 y PREPROCESSING V1 — 2026-09-22
+
+### Estado previo
+
+Al comenzar este bloque `lab` estaba limpio y sincronizado con `origin/lab` en
+`7eb0b23`. `main` y `origin/main` seguían en `3120361`. TEST-003 todavía no
+tenía un documento en el repositorio; TEST-002 conservaba la documentación
+histórica de su aceptación regional pendiente.
+
+### Resultado físico TEST-003 registrado
+
+Las pruebas físicas de iPhone comunicadas para este bloque reconocieron
+correctamente dos dibujos manuscritos de cotas numéricas: `50 × 30` y `27 × 82`,
+incluyendo sus posiciones y una orientación diferente en el segundo caso.
+Esto queda como **PASS limitado** para reconocimiento numérico manuscrito
+básico en esos casos. No significa reconocimiento universal, no valida `Ø`,
+`R`, decimales ni símbolos técnicos adicionales y no valida geometría
+arbitraria. Los valores no están hardcodeados.
+
+El registro detallado está en `docs/TEST_003.md`.
+
+### Objetivo del bloque
+
+La última prueba física mostró falsos candidatos geométricos y de agujeros por
+sombras, gradientes, textura y zonas oscuras del borde. PREPROCESSING V1 añade
+una comparación A/B para preparar `ClosedContour V0` sin implementarlo.
+
+```text
+ORIGINAL ──→ OCR actual
+       └──→ InkMap A/B ──→ componentes/propuestas geométricas
+```
+
+`src/geometryPreprocessing.ts` mantiene A como luminancia, stretch min/max,
+Otsu global y mapa binario. B usa luminancia, blur de caja separable con radio
+relativo al lado menor, resta de iluminación local alrededor de 128, ganancia
+de contraste 2.2 y threshold conservador sobre la señal corregida. No aplica
+apertura/cierre destructivo: trazos y componentes pequeños siguen observables.
+
+`scanner.ts` ejecuta ambos mapas y conserva componentes, propuestas, tiempos y
+resúmenes. El detector funcional sigue usando A; B es diagnóstico y no cambia
+silenciosamente la geometría existente.
+
+### Diagnóstico y verificación
+
+`LAB · Diagnóstico temporal` muestra original, grayscale, iluminación estimada,
+corrección, InkMap A, InkMap V1, componentes A/B, propuestas y JSON resumido.
+Las métricas incluyen foreground ratio, número de componentes, componentes
+pequeños, componente mayor, parámetros efectivos y tiempos.
+
+- `npm test`: PASS, 7 archivos / 58 pruebas. Incluye fondo uniforme, gradiente,
+  sombra lateral, preservación de trazos finos/gruesos, ruido aislado,
+  resolución duplicada y contrato A/B.
+- `npm run lint`: PASS.
+- `npm run build`: PASS, strict TypeScript; permanecen los avisos existentes de
+  chunks >500 kB y externalización `fs/path/crypto` de OpenCV.js.
+- `CI=1 npm run test:e2e`: PASS, 6 pruebas Chromium móvil en 28.1 s. La suite
+  también ejecutó el OCR sintético TEST-002; sus tiempos regionales quedaron
+  en el rango observado previamente de aproximadamente 2.7 s en este entorno.
+- `git diff --check`: PASS.
+
+### Limitaciones y siguiente prueba
+
+La mejora de B está verificada solo con invariantes sintéticos; todavía no se
+declara éxito físico frente a sombras. La implementación conserva arrays de
+mapas en memoria durante el diagnóstico, por lo que fotos grandes pueden
+elevar memoria y coste de renderizado. El detector sigue dependiendo de
+componentes y rectángulos; no reconoce contornos arbitrarios ni sustituye la
+heurística de agujeros.
+
+`TEST-004 — arbitrary closed polygonal contour` será una silueta manual tipo T,
+con varios segmentos y cotas alrededor. Debe evaluar si el InkMap representa
+limpiamente la silueta y reduce falsos candidatos bajo iluminación desigual.
+TEST-004 queda pendiente, sin PASS.

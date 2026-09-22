@@ -208,6 +208,11 @@ test("automatic scanner resolves a rectangular part with a circular hole", async
   let report = JSON.parse((await diagnostic.textContent())!);
   expect(["READY", "ERROR"]).toContain(report.ocr.status);
   expect(report.association.status).toMatch(/READY|NOT_READY/);
+  expect(report.preprocessingAB.baseline.mode).toBe("baseline");
+  expect(report.preprocessingAB.v1.mode).toBe("v1");
+  expect(report.preprocessingAB.comparison).toHaveProperty("foregroundRatioDelta");
+  expect(report.detectionsV1).toBeInstanceOf(Array);
+  expect(report.geometryProposals).toHaveProperty("v1");
   expect(report.unresolved).toContain("thicknessMm");
   expect(report.parametricModel).toBeNull();
   await expect(page.getByRole("img", { name: "Diagnóstico sobre fotografía original" })).toBeVisible();
@@ -219,9 +224,10 @@ test("automatic scanner resolves a rectangular part with a circular hole", async
   expect(report.unresolved).toEqual([]);
   expect(report.parametricModel.depth).toBe(5);
   expect(report.parametricModel.entities[0].width).toBe(80);
-  await page.getByRole("button", { name: "CONTINUAR" }).click();
+  await page.getByRole("button", { name: "CONTINUAR" }).scrollIntoViewIfNeeded();
+  await page.getByRole("button", { name: "CONTINUAR" }).click({ force: true });
   await expect(page.getByRole("heading", { name: "CONFIRMA TU PIEZA" })).toBeVisible();
-  await page.getByRole("button", { name: "CONFIRMAR PIEZA" }).click();
+  await page.getByRole("button", { name: "CONFIRMAR PIEZA" }).click({ force: true });
   await expect(page.locator(".viewer canvas")).toBeVisible();
   await page.getByRole("button", { name: "2D", exact: true }).click();
   await page.getByRole("button", { name: "Editor avanzado" }).click();

@@ -1,5 +1,11 @@
 import { newPart, type Part } from "./model";
 import type { AssociationResult, DimensionTrace } from "./association";
+import {
+  preprocessGeometry,
+  summarizeInkMap,
+  type InkMap,
+  type InkMapSummary,
+} from "./geometryPreprocessing";
 
 export type DetectionState =
   | "DETECTED"
@@ -67,63 +73,31 @@ export type RasterDiagnostics = {
     connectivity: 8;
     minimumPixels: 4;
   };
+  preprocessingAB: {
+    baseline: InkMapSummary;
+    v1: InkMapSummary;
+    comparison: {
+      foregroundRatioDelta: number;
+      componentCountDelta: number;
+      tinyComponentCountDelta: number;
+      largestComponentDelta: number;
+      totalMs: number;
+    };
+  };
+  inkMaps: { baseline: InkMap; v1: InkMap };
   components: (Component & { id: string; retained: boolean })[];
+  componentsV1: (Component & { id: string; retained: boolean })[];
+  proposals: { baseline: GeometryProposal; v1: GeometryProposal };
   ocr: { status: "NOT_IMPLEMENTED"; textRegions: []; recognizedText: [] };
   association: { status: "NOT_IMPLEMENTED"; matches: [] };
 };
 
-function otsuThreshold(values: number[]) {
-  const histogram = new Array(256).fill(0) as number[];
-  for (const value of values) histogram[value]++;
-  const total = values.length;
-  let sum = 0;
-  for (let i = 0; i < histogram.length; i++) sum += i * histogram[i];
-  let backgroundWeight = 0;
-  let backgroundSum = 0;
-  let bestVariance = -1;
-  let threshold = 128;
-  for (let i = 0; i < histogram.length; i++) {
-    backgroundWeight += histogram[i];
-    if (!backgroundWeight) continue;
-    const foregroundWeight = total - backgroundWeight;
-    if (!foregroundWeight) break;
-    backgroundSum += i * histogram[i];
-    const backgroundMean = backgroundSum / backgroundWeight;
-    const foregroundMean = (sum - backgroundSum) / foregroundWeight;
-    const variance =
-      backgroundWeight *
-      foregroundWeight *
-      (backgroundMean - foregroundMean) ** 2;
-    if (variance > bestVariance) {
-      bestVariance = variance;
-      threshold = i;
-    }
-  }
-  return threshold;
-}
-
-function components(data: Uint8ClampedArray, width: number, height: number, report?: (trace: RasterDiagnostics) => void) {
-  const gray = new Array<number>(width * height);
-  for (let i = 0; i < gray.length; i++) {
-    const offset = i * 4;
-    gray[i] = Math.round(
-      0.299 * data[offset] + 0.587 * data[offset + 1] + 0.114 * data[offset + 2],
-    );
-  }
-  let min = 255;
-  let max = 0;
-  for (const value of gray) {
-    min = Math.min(min, value);
-    max = Math.max(max, value);
-  }
-  const normalized = gray.map((value) =>
-    max === min ? value : Math.round(((value - min) * 255) / (max - min)),
-  );
-  const threshold = otsuThreshold(normalized);
-  const dark = normalized.map((value) => value <= threshold);
+function componentsFromMap(map: InkMap) {
+  const { width, height } = map;
+  const dark = map.binary;
   const visited = new Uint8Array(dark.length);
   const result: Component[] = [];
-  const all: RasterDiagnostics["components"] = [];
+  const all: (Component & { id: string; retained: boolean })[] = [];
   for (let start = 0; start < dark.length; start++) {
     if (!dark[start] || visited[start]) continue;
     const queue = [start];
@@ -160,37 +134,45 @@ function components(data: Uint8ClampedArray, width: number, height: number, repo
     if (pixels >= 4)
       result.push({ pixels, minX, minY, maxX, maxY });
   }
-  report?.({
-    preprocessing: { grayMin: min, grayMax: max, threshold, connectivity: 8, minimumPixels: 4 },
-    components: all,
-    ocr: { status: "NOT_IMPLEMENTED", textRegions: [], recognizedText: [] },
-    association: { status: "NOT_IMPLEMENTED", matches: [] },
-  });
-  return result;
+  return { result, all };
 }
 
-export function scanRaster(
-  data: Uint8ClampedArray,
-  width: number,
-  height: number,
-  report?: (trace: RasterDiagnostics) => void,
-): ScanResult {
-  if (width < 8 || height < 8 || data.length < width * height * 4)
-    throw new Error("La imagen es demasiado pequeña para interpretar una pieza.");
-  const detected = components(data, width, height, report).sort(
+function range(values: Uint8Array) {
+  let min = 255;
+  let max = 0;
+  for (const value of values) {
+    min = Math.min(min, value);
+    max = Math.max(max, value);
+  }
+  return { min, max };
+}
+
+function largestComponent(components: Component[]) {
+  let largest = 0;
+  for (const component of components) largest = Math.max(largest, component.pixels);
+  return largest;
+}
+
+export type GeometryProposal = {
+  outer?: RectPixels & { state: "DETECTED" };
+  holes: (HolePixels & { state: "DETECTED" })[];
+};
+
+function proposeGeometry(detected: Component[], width: number, height: number): GeometryProposal {
+  const sorted = [...detected].sort(
     (a, b) =>
       (b.maxX - b.minX) * (b.maxY - b.minY) -
       (a.maxX - a.minX) * (a.maxY - a.minY),
   );
-  const outer = detected.find(
+  const outer = sorted.find(
     (component) =>
       component.maxX - component.minX >= width * 0.2 &&
       component.maxY - component.minY >= height * 0.2,
   );
-  if (!outer) throw new Error("No entiendo completamente este contorno.");
+  if (!outer) return { holes: [] };
   const outerWidth = outer.maxX - outer.minX;
   const outerHeight = outer.maxY - outer.minY;
-  const holes = detected
+  const holes = sorted
     .filter((component) => component !== outer)
     .map((component, index) => {
       const componentWidth = component.maxX - component.minX;
@@ -227,6 +209,60 @@ export function scanRaster(
       state: "DETECTED",
     },
     holes,
+  };
+}
+
+export function scanRaster(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+  report?: (trace: RasterDiagnostics) => void,
+): ScanResult {
+  const started = performance.now();
+  if (width < 8 || height < 8 || data.length < width * height * 4)
+    throw new Error("La imagen es demasiado pequeña para interpretar una pieza.");
+  const maps = preprocessGeometry(data, width, height);
+  const baselineComponents = componentsFromMap(maps.baseline);
+  const v1Components = componentsFromMap(maps.v1);
+  const baselineProposal = proposeGeometry(baselineComponents.result, width, height);
+  const v1Proposal = proposeGeometry(v1Components.result, width, height);
+  const baselineRange = range(maps.baseline.grayscale);
+  const baselineSummary = summarizeInkMap(maps.baseline, baselineComponents.all.map((item) => item.pixels));
+  const v1Summary = summarizeInkMap(maps.v1, v1Components.all.map((item) => item.pixels));
+  report?.({
+    preprocessing: {
+      grayMin: baselineRange.min,
+      grayMax: baselineRange.max,
+      threshold: maps.baseline.parameters.threshold,
+      connectivity: 8,
+      minimumPixels: 4,
+    },
+    preprocessingAB: {
+      baseline: baselineSummary,
+      v1: v1Summary,
+      comparison: {
+        foregroundRatioDelta: v1Summary.foregroundRatio - baselineSummary.foregroundRatio,
+        componentCountDelta: v1Components.all.length - baselineComponents.all.length,
+        tinyComponentCountDelta:
+          v1Components.all.filter((item) => item.pixels < 4).length -
+          baselineComponents.all.filter((item) => item.pixels < 4).length,
+        largestComponentDelta:
+          largestComponent(v1Components.all) - largestComponent(baselineComponents.all),
+        totalMs: performance.now() - started,
+      },
+    },
+    inkMaps: maps,
+    components: baselineComponents.all,
+    componentsV1: v1Components.all,
+    proposals: { baseline: baselineProposal, v1: v1Proposal },
+    ocr: { status: "NOT_IMPLEMENTED", textRegions: [], recognizedText: [] },
+    association: { status: "NOT_IMPLEMENTED", matches: [] },
+  });
+  const outer = baselineProposal.outer;
+  if (!outer) throw new Error("No entiendo completamente este contorno.");
+  return {
+    outer,
+    holes: baselineProposal.holes,
     imageWidth: width,
     imageHeight: height,
   };
