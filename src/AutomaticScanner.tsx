@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   partFromScan,
   resolveScan,
@@ -17,6 +17,7 @@ export default function AutomaticScanner({
   onBack: () => void;
   onComplete: (part: Part, photo: Photo) => void;
 }) {
+  const request = useRef(0);
   const [capture, setCapture] = useState<ScanCapture>();
   const [image, setImage] = useState<string>();
   const [scan, setScan] = useState<ScanResult>();
@@ -32,6 +33,7 @@ export default function AutomaticScanner({
 
   async function process(file?: File) {
     if (!file) return;
+    const requestId = ++request.current;
     setScan(undefined);
     setCapture(undefined);
     setError("");
@@ -51,9 +53,10 @@ export default function AutomaticScanner({
         reader.onerror = () => reject(new Error("No se pudo leer la fotografía original."));
         reader.readAsDataURL(file);
       });
+      if (requestId !== request.current) return;
       const nextCapture: ScanCapture = { original, originalWidth: photo.width, originalHeight: photo.height, width: canvas.width, height: canvas.height };
       setCapture(nextCapture);
-      void recognizePhoto(canvas, { width: photo.width, height: photo.height }).then((ocr) => setCapture((current) => current ? { ...current, ocr } : current));
+      void recognizePhoto(canvas, { width: photo.width, height: photo.height }).then((ocr) => setCapture((current) => current && requestId === request.current ? { ...current, ocr } : current));
       const result = scanRaster(
         canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height)
           .data,

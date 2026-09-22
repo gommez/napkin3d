@@ -1,3 +1,4 @@
+import RegionDiagnostics from "./RegionDiagnostics";
 import type { Part } from "./model";
 import { resolveScan, type RasterDiagnostics, type ScanAnswers, type ScanResult } from "./scanner";
 import type { OcrDiagnostics } from "./ocr";
@@ -61,10 +62,11 @@ export default function ScanDiagnostics({ capture, scan, answers, part, error }:
         <text x={d.bbox.x} y={Math.max(10, d.bbox.y - 3)} fill="#d00070" fontSize={Math.max(7, capture.width / 55)}>{d.text}</text>
       </g>)}
     </svg>
-    <h3>OCR DETECTADO</h3>
+    <h3>OCR BASELINE</h3>
     {capture.ocr?.status === "ERROR" && <p className="notice">OCR no inicializado: {capture.ocr.error}</p>}
     {capture.ocr?.status === "READY" && <table><thead><tr><th>texto</th><th>x</th><th>y</th><th>width</th><th>height</th><th>score interno</th></tr></thead><tbody>{capture.ocr.detections.map((d) => <tr key={d.id}><td>{d.text}</td><td>{d.bbox.x.toFixed(1)}</td><td>{d.bbox.y.toFixed(1)}</td><td>{d.bbox.width.toFixed(1)}</td><td>{d.bbox.height.toFixed(1)}</td><td>{d.score.toFixed(4)}</td></tr>)}</tbody></table>}
     {capture.ocr && <p>OCR: inicialización {capture.ocr.timings.initializationMs.toFixed(0)} ms · detección {capture.ocr.timings.detectionMs.toFixed(0)} ms · reconocimiento {capture.ocr.timings.recognitionMs.toFixed(0)} ms · total {capture.ocr.timings.totalMs.toFixed(0)} ms.</p>}
+    <RegionDiagnostics key={capture.original} original={capture.original} baseline={capture.ocr} />
     <p>ASOCIACIÓN: <strong>NOT_IMPLEMENTED</strong>. El texto no modifica geometría, medidas ni modelo paramétrico.</p>
     <p>Medidas: ancho, diámetros y grosor proceden exclusivamente de respuestas manuales. Altura y centros se derivan de píxeles y escala. No se lee la cota vertical.</p>
     <p>Pendientes: {values.unresolved.join(", ") || "ninguno"}. Modelo {part ? "preparado para confirmar" : "bloqueado"}.</p>

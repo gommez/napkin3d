@@ -2,7 +2,9 @@
 
 Estado: piloto aprobado e integrado en `lab`. La asociación semántica sigue sin implementarse.
 Rama `lab`, commit `a198d49`; cambios de diagnóstico anteriores conservados.
-No hay benchmark de TEST-001 ni validación en dispositivos reales.
+Documento de investigación histórica; el piloto posterior está integrado.
+TEST-001 físico en iPhone localizó regiones pero falló transcripción manuscrita.
+TEST-002 implementado, pendiente de prueba física: véase TEST_002.md.
 
 ## Recomendación
 
@@ -155,7 +157,7 @@ el módulo JSEP que el navegador necesitó durante la prueba. El SDK devuelve
 polígonos/cajas desde el canvas reducido a píxeles de la fotografía original.
 
 La prueba sintética impresa en Chromium produjo detecciones reales con cajas y
-pasó. El caso físico TEST-001 y manuscrito no se han validado; no se declara
+pasó. El posterior TEST-001 físico falló transcripción manuscrita; no se declara
 soporte manuscrito. El primer intento reveló y corrigió un asset JSEP ausente,
 no un fallo de reconocimiento.
 
@@ -166,11 +168,9 @@ módulos 12,361,745 + 25,014,754 + 24,274 + 46,595 bytes. `public/ocr/` suma
 a descarga gzip ni RAM. La build mantiene el aviso de chunks grandes y requiere
 memoria de compilación elevada en este entorno.
 
-## Decisión pendiente
+## Decisión vigente
 
-Aprobar piloto de PaddleOCR.js + PP-OCRv6 tiny con todos sus assets locales
-(recomendado por el requisito de manuscrito), o Tesseract.js si se prefiere
-menor complejidad y se acepta explícitamente su limitación de manuscrito.
-Reconocedor propio: reservar para cuando datos reales justifiquen entrenarlo.
-STOP: sin instalación, integración, asociación, cambios de modelo/editor,
-commit, push, merge ni deployment.
+PaddleOCR.js 0.4.2 + PP-OCRv6 tiny se mantiene para TEST-002 por decisión
+registrada en STATUS.md. La selección propuesta en la investigación anterior
+ya fue resuelta. No cambiar motor, diccionario ni modelo; no implementar
+asociación dimensional. La aceptación manuscrita de TEST-002 queda pendiente.

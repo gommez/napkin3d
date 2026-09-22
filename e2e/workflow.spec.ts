@@ -351,6 +351,7 @@ test("automatic photo actions use separate native file inputs", async ({
 });
 
 test("local PaddleOCR returns text detections with positions for a printed synthetic image", async ({ page }) => {
+  test.setTimeout(180000);
   await page.goto("/napkin3d/");
   await page.getByRole("button", { name: "PROYECTO AUTOMÁTICO" }).click();
   await page.locator("input[type=file]").first().setInputFiles({
@@ -362,9 +363,54 @@ test("local PaddleOCR returns text detections with positions for a printed synth
   await page.getByText("LAB · Diagnóstico temporal", { exact: true }).click();
   const diagnostic = page.getByTestId("scan-diagnostic-json");
   await expect.poll(async () => JSON.parse((await diagnostic.textContent())!).ocr.status, { timeout: 60000 }).toBe("READY");
+  for (const field of await page.locator(".scan-fields input").all()) await field.fill("12");
   const report = JSON.parse((await diagnostic.textContent())!);
+  expect(report.parametricModel).not.toBeNull();
   expect(report.ocr.coordinateSpace).toBe("original-image-pixels");
   expect(report.ocr.detections.length).toBeGreaterThan(0);
   expect(report.ocr.detections.every((d: { bbox: { width: number; height: number }; polygon: unknown[]; text: string }) => d.text && d.bbox.width > 0 && d.bbox.height > 0 && d.polygon.length >= 4)).toBeTruthy();
   expect(report.association).toBe("NOT_IMPLEMENTED");
+  await page.getByRole("button", { name: "Ejecutar TEST-002", exact: true }).click();
+  const regionsJson = page.getByTestId("ocr-regions-json");
+  await expect.poll(async () => {
+    const text = await regionsJson.textContent();
+    return text ? JSON.parse(text).status : "RUNNING";
+  }, { timeout: 150000 }).toBe("READY");
+  const regional = JSON.parse((await regionsJson.textContent())!);
+  expect(regional.regions.length).toBe(report.ocr.detections.length);
+  expect(regional.association).toBe("NOT_IMPLEMENTED");
+  for (const region of regional.regions) {
+    expect(region.variants).toHaveLength(6);
+    expect(region.preview).toMatch(/^data:image\/png/);
+    const cropMatchesOriginal = await page.evaluate(async ({ preview, crop }) => {
+      const source = document.querySelector('svg[aria-label="Diagnóstico sobre fotografía original"] image')!.getAttribute('href')!;
+      const original = new Image(); original.src = source; await original.decode();
+      const actual = new Image(); actual.src = preview; await actual.decode();
+      const expectedCanvas = document.createElement('canvas'); expectedCanvas.width = crop.width; expectedCanvas.height = crop.height;
+      const context = expectedCanvas.getContext('2d')!;
+      context.fillStyle = 'white'; context.fillRect(0, 0, crop.width, crop.height);
+      context.drawImage(original, crop.x, crop.y, crop.width, crop.height, 0, 0, crop.width, crop.height);
+      const expected = context.getImageData(0, 0, crop.width, crop.height).data;
+      context.clearRect(0, 0, crop.width, crop.height); context.drawImage(actual, 0, 0);
+      return context.getImageData(0, 0, crop.width, crop.height).data.every((value, index) => value === expected[index]);
+    }, { preview: region.preview, crop: region.crop });
+    expect(cropMatchesOriginal).toBe(true);
+    expect(region.crop.x).toBeGreaterThanOrEqual(0);
+    expect(region.crop.x + region.crop.width).toBeLessThanOrEqual(600);
+    expect(region.crop.y + region.crop.height).toBeLessThanOrEqual(400);
+    expect(region.variants[1].width).toBe(region.crop.width * 2);
+    for (const variant of region.variants) {
+      expect(variant.ocrMs).toBeGreaterThan(0);
+      for (const candidate of variant.candidates) {
+        expect(candidate.bbox.x).toBeGreaterThanOrEqual(region.crop.x);
+        expect(candidate.bbox.y).toBeGreaterThanOrEqual(region.crop.y);
+        expect(['dimension-compatible', 'non-dimension-compatible', 'ambiguous']).toContain(candidate.classification);
+      }
+    }
+  }
+  expect(regional.regions.some((r: { variants: { candidates: unknown[] }[] }) => r.variants.some(v => v.candidates.length))).toBeTruthy();
+  const after = JSON.parse((await diagnostic.textContent())!);
+  expect(after).toEqual(report);
+  console.log('TEST-002 synthetic timings', JSON.stringify(regional.timings));
+  console.log('TEST-002 candidates', JSON.stringify(regional.regions.map((r: { baseline: { text: string }; variants: { name: string; ocrMs: number; candidates: { text: string }[] }[] }) => ({ baseline: r.baseline.text, variants: r.variants.map(v => ({ name: v.name, ms: v.ocrMs, texts: v.candidates.map(c => c.text) })) }))));
 });

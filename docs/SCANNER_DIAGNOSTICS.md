@@ -1,10 +1,10 @@
 # LAB temporary scanner diagnostics
 
-This block is observation only. No OCR engine or text detector exists in the
-current source or dependencies. No recognized strings, numeric tokens, text
-bounding boxes, confidence scores or text-to-dimension associations exist.
-The geometry report still describes its original raster stages. OCR is now a
-separate local PaddleOCR pilot; `NOT_IMPLEMENTED` applies only to association.
+Current LAB state: geometry instrumentation plus local PaddleOCR baseline and
+TEST-002 regional calibration. Association remains `NOT_IMPLEMENTED`.
+The physical iPhone TEST-001 localized handwriting but failed transcription;
+TEST-002 physical acceptance is pending. See `TEST_002.md` for the current
+procedure. The geometry pipeline below remains unchanged.
 
 ## Local TEST-001 procedure
 
@@ -17,12 +17,12 @@ reachable LAN address. Camera availability depends on browser/secure context.
 Choose PROYECTO AUTOMÁTICO → ELEGIR FOTO → select the real TEST-001 photo →
 expand LAB · Diagnóstico temporal. Use the same photo with the rectangle,
 circular hole, horizontal number, vertical number, hole number/Øn and distant
-number. The actual TEST-001 photograph is not supplied in this repository and
-has not been tested in this block.
+number. The actual TEST-001 photograph is not supplied in this repository. Its physical
+iPhone outcome is recorded in STATUS.md.
 
 Inspect the original image overlay, component coordinates, OCR and association
-status, reconstructed geometry, pending inputs and full JSON. Boxes mark ink
-components, **not text detections**. Connected strokes can combine letters,
+status, reconstructed geometry, pending inputs and full JSON. Blue/gray boxes mark ink
+components, **not text detections**; magenta polygons are baseline OCR detections. Connected strokes can combine letters,
 dimensions and geometry into one component. Labels identify components, not
 recognized characters. Compare the distant number's component(s) manually;
 there is no thickness heuristic. Enter manual width, hole diameter and depth:
@@ -53,17 +53,16 @@ change the stored schema. The original photo stays in browser memory only.
    The read-only diagnostic displays that same prepared Part, including IDs.
 
 JPEG quality 0.85 is used for the photo attached to the part, after the canvas
-pixels were scanned; it is not an OCR preprocessing step. No deskewing,
-perspective correction, text-region extraction or OCR library is present.
+pixels were scanned; it is not an OCR preprocessing step. No deskewing or perspective correction is present. TEST-002 separately crops
+baseline text regions from the original image for local OCR variants.
 
 ## Validation boundary / next decision
 
 Synthetic unit fixtures verify trace preservation, rejected components,
 geometry failure visibility and unresolved/model values. Mobile Chromium E2E
 checks diagnostic UI and the existing workflows. Neither proves OCR recognition
-of a real photo. No real-device or TEST-001 recognition claim is made.
+of a real photo. The later physical TEST-001 failed handwritten transcription; see STATUS.md.
 
-Next: collect TEST-001 evidence and decide explicitly on a browser-local OCR/text
-localization approach before installing anything. Recognition with positional
-output must exist and be validated before dimension association is designed.
+Next: run the physical TEST-002 protocol in TEST_002.md. Recognition with positional
+output must be validated before dimension association is designed.
 Distant-number-to-thickness inference remains deferred.

@@ -4,17 +4,18 @@
 
 Implement the zero-cost, browser-local Automatic Scanner milestone on `lab` while preserving GitHub Pages production on `main` and the existing Vercel LAB preview. HOME leads to Automatic Project or Manual Project. Automatic Project is the simplified workflow; Manual Project remains the editor and advanced correction mode.
 
-Automatic sketch interpretation is planned but not implemented.
+Assisted raster geometry scanning and local diagnostic OCR are implemented.
+Semantic text-to-dimension association remains NOT_IMPLEMENTED.
 
 ## Stable production
 
-`main` is the stable production branch and must not be modified without explicit approval. At this point it points to the initial Napkin3D mobile MVP commit, the same commit currently checked out on `lab`.
+`main` is the stable production branch and must not be modified without explicit approval. At this point it points to the initial Napkin3D mobile MVP commit, `3120361`; `lab` has advanced independently.
 
 ## Current branch
 
 `lab`. This block changes only the scanner/model/editor/export surfaces and their documentation/tests. `main` was not modified.
 
-## Last completed block
+## Last completed block (historical; latest block at end of file)
 
 Automatic Scanner Stage A and Stage B: explicit circular through-holes are now part of the parametric model, and the local scanner can detect a simple rectangle plus circular features, ask for unresolved measurements, confirm the result, and open the existing 3D/manual workflow. Vercel builds still use `/` and GitHub Pages builds retain `/napkin3d/`.
 
@@ -25,7 +26,7 @@ Automatic Scanner Stage A and Stage B: explicit circular through-holes are now p
 - ESLint passes.
 - The existing application provides the Manual Project flow: project and part creation, photo import, calibration, manual geometry editing, local autosave, 2D/3D modes, and export controls.
 - HOME presents exactly two primary choices: Proyecto Automático and Proyecto Manual.
-- Automatic Project opens a placeholder with NUEVA PIEZA, HACER FOTO, and ELEGIR FOTO, plus a return action.
+- Automatic Project opens the local scanner with NUEVA PIEZA, HACER FOTO, and ELEGIR FOTO, plus a return action.
 - Manual Project opens the existing project/editor workflow and can return to HOME without deleting or resetting saved data.
 - The parametric model in `src/model.ts` remains the source of truth; SVG and STL are derived exports.
 - The same source supports GitHub Pages production at `/napkin3d/` and Vercel previews at their deployment root.
@@ -44,13 +45,13 @@ These statements are based on the current source and automated checks. Real-devi
 - Real-device acceptance previously found that both Automatic Scanner image actions did nothing; this block replaces unreliable hidden-input programmatic activation with direct native label activation.
 - DirectEditView is automated-test verified but has not yet passed real-device acceptance on iPhone or Android.
 
-## Current work
+## Previous editor block
 
 This block adds DirectEditView as the primary 2D editing experience. It uses the existing Part model, SVG orthographic handles, live dimensions, long-press numeric editing, hole constraints, contextual thickness editing, and immediate 3D regeneration through the existing Viewer. The original Editor remains available through Editor avanzado. No scanner detection, export architecture, Vercel, production, or main configuration was changed.
 
 ## Decisions pending
 
-- Decide the implementation boundary and interpretation technology for Automatic Project before starting automatic sketch interpretation. Options include a constrained browser-local flow, an external service, or postponing interpretation while building only the correction workflow. This affects architecture, privacy, product behavior, and dependencies.
+- Local assisted geometry and PaddleOCR diagnostic pilots were approved in later blocks. Semantic association and any engine/model change still require a new decision. See the latest TEST-002 entry.
 
 ## Do not touch
 
@@ -59,7 +60,7 @@ This block adds DirectEditView as the primary 2D editing experience. It uses the
 - Do not expand the Automatic Project shell into interpretation or generation without an explicit product decision.
 - Do not expand the scanner beyond its supported rectangular contour/circular feature milestone without a new validation block.
 - Do not fix SVG export yet.
-- Do not treat automatic interpretation as implemented.
+- Do not treat semantic text-to-dimension association as implemented.
 - Do not reconstruct the authoritative model from SVG or STL.
 
 ## Next recommended action
@@ -271,3 +272,110 @@ revisar esas detecciones.
 Cerrar esta sesión sin iniciar TEST-002 ni introducir cambios funcionales.
 Preparar TEST-002 sobre la rama `lab`, manteniendo PaddleOCR, baseline A/B
 full-photo y `ASOCIACIÓN: NOT_IMPLEMENTED`. No modificar `main`.
+
+## TEST-002 — calibración OCR por regiones — 2026-09-22
+
+### Objetivo y estado
+
+Implementación diagnóstica terminada en `lab`, sobre `a0f3b47`. Mejorar/evaluar
+la transcripción de cotas manuscritas localizadas, conservando PaddleOCR.js
+0.4.2, PP-OCRv6 tiny y API pública `PaddleOCR.predict()`. **Aceptación física
+TEST-002 PENDIENTE**: las pruebas automáticas no demuestran reconocimiento
+manuscrito. TEST-001 físico sigue registrado como FAIL de transcripción.
+
+### Arquitectura y comparación
+
+- Baseline global conservado, mismo canvas completo reducido a máximo 1000 px,
+  misma configuración e inferencia; se muestra como OCR BASELINE. Solo se
+  extrae la creación idéntica del worker a una función compartida.
+- Botón Ejecutar TEST-002 dentro del diagnóstico, habilitado al finalizar el
+  baseline. Crops desde la imagen original a partir de sus bbox, margen del
+  25 % del lado menor (mínimo 8 px), redondeo hacia fuera y límites de imagen.
+- Un worker regional nuevo, local WASM de un hilo; seis llamadas secuenciales
+  predict por región, cada una vuelve a ejecutar detección + reconocimiento.
+  Sin dependencias nuevas, APIs internas, cambios de modelos ni diccionarios.
+- Variantes: original; upscale ×2; grayscale/contrast min-max; binary (gris,
+  min-max, umbral fijo 128); upscale ×2 + binary. Parámetros heredados idénticos.
+- Sexta condición independiente: original/box-threshold, solo
+  `textDetBoxThresh: 0.3` frente al 0.4 de inference.yml del modelo local.
+  Evalúa recuperación de cajas débiles frente a falsos positivos; no se han
+  ajustado parámetros a un resultado esperado. Se mantiene textRecScoreThresh=0
+  de la configuración original. Resto de parámetros sin overrides.
+- Polígonos de cada candidato reproyectados mediante escala/offset del crop a
+  píxeles originales; bbox derivada de todos los vértices. Sin conversión a mm.
+- Clasificación sintáctica separada: dimension-compatible para números con
+  decimal opcional, Ø/R, mm y productos x/×; ambiguous para vacíos/expresiones
+  incompletas o mezclas con caracteres del dominio; non-dimension-compatible
+  para el resto. Conserva texto bruto y score; no corrige letras ni inventa cotas.
+- Panel por región: crop original, posición baseline/crop, texto/score baseline,
+  todas las variantes/candidatos/clasificaciones/tiempos, incluso vacíos o errores.
+  JSON TEST-002 separado del JSON baseline, con asociación NOT_IMPLEMENTED.
+  Ninguna variante se elige automáticamente. Resultados temporales, sin guardar
+  en IndexedDB. Guardar/copiar ambos JSON antes de abandonar el flujo.
+- Part y detector geométrico sin cambios. Protección de resultados asíncronos
+  baseline para que una foto anterior no contamine el diagnóstico de otra.
+- Procedimiento completo y fórmulas: docs/TEST_002.md. Corregidas únicamente
+  afirmaciones documentales antiguas que negaban el OCR/piloto/prueba física
+  actuales; conservadas decisiones arquitectónicas e historia de bloques.
+
+### Verificación real del bloque
+
+- `npm test`: PASS, 5 archivos / 41 pruebas. Crops/márgenes/bordes, reproyección,
+  preprocessing determinista, clasificación, aislamiento de parámetros,
+  diagnóstico y conservación del modelo.
+- `npm run lint`: PASS.
+- `npm run build`: PASS, strict TypeScript; permanecen los avisos de chunks
+  >500 kB y externalización fs/path/crypto de OpenCV.js.
+- `CI=1 npm run test:e2e`: PASS, 6 pruebas Chromium con viewport iPhone 13;
+  última ejecución 28.5 s de suite (build adicional). Incluye flujo Manual,
+  importación, dibujo/selección/movimiento/resize, edición numérica,
+  calibración, undo/redo, persistencia, exportaciones y scanner existente.
+  TEST-002 ejecuta OCR real de 3 regiones impresas y 18 variantes; verifica
+  crops píxel a píxel, tamaños ×2, posiciones, estructura y clasificación,
+  ausencia de cambio en baseline/informe y Part ya preparado, asociación ausente.
+- Primer intento E2E: build correcta pero servidor bloqueado por sandbox;
+  ejecución autorizada fuera del sandbox pasó. No hubo instalaciones.
+- `git diff --check`: PASS después de eliminar una línea vacía final adicional.
+- Prueba física iPhone de TEST-002: NO REALIZADA.
+
+### Rendimiento observado (no benchmark móvil)
+
+Imagen sintética impresa de 600×400, Chromium automatizado en este entorno
+Linux, viewport móvil, WASM CPU un hilo. Última ejecución:
+
+| Etapa | ms |
+| --- | ---: |
+| Baseline (incluye inicialización) | 4822.8 |
+| Inicialización del worker regional | 231.3 |
+| Generación de crops y previews | 207.7 |
+| Preprocessing variantes | 88.8 |
+| OCR de 18 variantes | 1536.4 |
+| Bloque regional completo | 2080.8 |
+| Total baseline + bloque regional | 6903.6 |
+
+Pasadas individuales: 48.8–306.7 ms. El bloque regional añadió ~43 % sobre el
+baseline medido. Una ejecución previa dio 4619.2 ms baseline + 2098.1 ms regional
+= 6717.3 ms. No hay control estadístico de caché/arranque frío ni medición de RAM.
+El total excluye espera humana y decodificación inicial; incluye inicialización
+regional, publicación del diagnóstico y disposición del worker.
+
+En este impreso, baseline y las seis condiciones conservaron los mismos textos
+`80`, `40`, `5`. No se observa una mejora de transcripción porque baseline ya
+acertaba. No son condiciones especiales del producto ni evidencia manuscrita.
+
+### Limitaciones y próxima acción
+
+- Solo se evalúan regiones devueltas por baseline; no recupera cotas omitidas.
+- Margen/preprocessing fijos pueden incluir trazos vecinos o fallar con sombras,
+  perspectiva y desenfoque. Sin deskew, ganador automático ni ground truth en app.
+- Score y clasificación no prueban exactitud. Seis pasadas por región añaden
+  latencia y memoria; muchas regiones/fotos grandes no están medidas en iPhone.
+- Diagnóstico temporal; sin botón de cancelación. Abandonar el panel no equivale
+  a cancelar una inferencia en curso. No se verificó arranque offline.
+- Siguiente acción: seguir docs/TEST_002.md en iPhone con la foto de TEST-001 si
+  está disponible y una nueva de la misma clase manuscrita; anotar texto real,
+  conservar ambos JSON, contrastar cada condición, posiciones y tiempos y
+  registrar PASS/FAIL físico. El LAB ya desplegado no contiene estos cambios.
+- No decidir asociación semántica ni motor nuevo antes de revisar evidencia.
+  ASOCIACIÓN sigue NOT_IMPLEMENTED. No hay éxito manuscrito declarado.
+- STOP: sin commit, push, deploy ni merge. `main` sigue en `3120361`, intacto.
