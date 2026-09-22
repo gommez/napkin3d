@@ -90,7 +90,7 @@ it.each(["5O", "", "Ø", "7..2", "S", "12foo"])(
 it.each(["hello", "bonjour", "y"])("rejects %s as non-dimensional", (text) =>
   expect(classifyDimension(text)).toBe("non-dimension-compatible"),
 );
-it("keeps Part and unresolved/manual association independent of diagnostic OCR", () => {
+it("keeps Part independent of diagnostic OCR and keeps interpretation visible", () => {
   const scan: ScanResult = {
     imageWidth: 100,
     imageHeight: 80,
@@ -139,7 +139,7 @@ it("keeps Part and unresolved/manual association independent of diagnostic OCR",
   );
   expect(html).toContain("OCR BASELINE");
   expect(html).toContain("OCR POR REGIONES");
-  expect(html).toContain("NOT_IMPLEMENTED");
+  expect(html).toContain("INTERPRETACIÓN");
   expect(part).toEqual(before);
   expect(part.depth).toBe(6);
 });

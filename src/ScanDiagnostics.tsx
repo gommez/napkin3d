@@ -2,6 +2,7 @@ import RegionDiagnostics from "./RegionDiagnostics";
 import type { Part } from "./model";
 import { resolveScan, type RasterDiagnostics, type ScanAnswers, type ScanResult } from "./scanner";
 import type { OcrDiagnostics } from "./ocr";
+import type { AssociationResult } from "./association";
 
 export type ScanCapture = {
   original: string;
@@ -13,30 +14,31 @@ export type ScanCapture = {
   ocr?: OcrDiagnostics;
 };
 
-export function diagnosticValues(scan: ScanResult | undefined, answers: ScanAnswers) {
+export function diagnosticValues(scan: ScanResult | undefined, answers: ScanAnswers, association?: AssociationResult) {
   if (!scan) return { unresolved: ["geometry", "referenceWidthMm", "thicknessMm"], resolution: null };
-  const resolution = resolveScan(scan, answers);
+  const resolution = resolveScan(scan, answers, association);
   return {
     resolution,
     unresolved: [
-      ...(!resolution.scaleMmPerPixel ? ["referenceWidthMm", "scaleMmPerPixel", "outer.heightMm (derived)"] : []),
+      ...(!resolution.dimensions.outerWidth ? ["outer.widthMm"] : []),
+      ...(!resolution.dimensions.outerHeight ? ["outer.heightMm"] : []),
       ...resolution.holes.filter(h => !h.diameterMm).map(h => `${h.id}.diameterMm`),
       ...(!resolution.thicknessMm ? ["thicknessMm"] : []),
     ],
   };
 }
 
-export default function ScanDiagnostics({ capture, scan, answers, part, error }: {
-  capture: ScanCapture; scan?: ScanResult; answers: ScanAnswers; part?: Part; error: string;
+export default function ScanDiagnostics({ capture, scan, answers, association, part, error }: {
+  capture: ScanCapture; scan?: ScanResult; answers: ScanAnswers; association?: AssociationResult; part?: Part; error: string;
 }) {
-  const values = diagnosticValues(scan, answers);
+  const values = diagnosticValues(scan, answers, association);
   const report = {
     image: { originalWidth: capture.originalWidth, originalHeight: capture.originalHeight, rasterWidth: capture.width, rasterHeight: capture.height },
     coordinates: { geometryUnits: "raster pixels", ocrUnits: "original-image-pixels", origin: "top-left", originalXFactor: capture.originalWidth / capture.width, originalYFactor: capture.originalHeight / capture.height, componentBounds: "min/max inclusive" },
     preprocessing: capture.raster?.preprocessing,
     detections: capture.raster?.components,
     ocr: capture.ocr ?? { status: "NOT_RUN" },
-    association: "NOT_IMPLEMENTED",
+    association: association ?? { status: scan && capture.ocr?.status === "READY" ? "READY" : "NOT_READY", note: "waiting for geometry and OCR annotations" },
     geometry: scan ?? null,
     userAnswers: answers,
     ...values,
@@ -46,7 +48,7 @@ export default function ScanDiagnostics({ capture, scan, answers, part, error }:
   };
   return <details className="scan-diagnostics">
     <summary>LAB · Diagnóstico temporal</summary>
-    <p>Imagen → preprocessing → geometría y OCR local independientes → detecciones + posiciones → asociación: <strong>NOT_IMPLEMENTED</strong>.</p>
+    <p>Imagen → geometría detectada/features → anotaciones OCR → asociación por evidencias → restricciones geométricas resueltas → modelo paramétrico.</p>
     <p><strong>GEOMETRÍA DETECTADA</strong>: las cajas azules son componentes de tinta; gris: descartado (&lt;4 píxeles). Verde: contorno; naranja: agujeros.</p>
     <p>Preprocessing: redimensionado a 1000 px como máximo (mínimo 8 por eje), gris 0.299R + 0.587G + 0.114B, normalización min/max, Otsu y componentes de 8 vecinos. Sin corrección de perspectiva. JPEG 0.85 solo para la foto guardada; el detector recibe RGBA del canvas.</p>
     <svg viewBox={`0 0 ${capture.originalWidth} ${capture.originalHeight}`} role="img" aria-label="Diagnóstico sobre fotografía original" style={{ width: "100%" }}>
@@ -67,8 +69,31 @@ export default function ScanDiagnostics({ capture, scan, answers, part, error }:
     {capture.ocr?.status === "READY" && <table><thead><tr><th>texto</th><th>x</th><th>y</th><th>width</th><th>height</th><th>score interno</th></tr></thead><tbody>{capture.ocr.detections.map((d) => <tr key={d.id}><td>{d.text}</td><td>{d.bbox.x.toFixed(1)}</td><td>{d.bbox.y.toFixed(1)}</td><td>{d.bbox.width.toFixed(1)}</td><td>{d.bbox.height.toFixed(1)}</td><td>{d.score.toFixed(4)}</td></tr>)}</tbody></table>}
     {capture.ocr && <p>OCR: inicialización {capture.ocr.timings.initializationMs.toFixed(0)} ms · detección {capture.ocr.timings.detectionMs.toFixed(0)} ms · reconocimiento {capture.ocr.timings.recognitionMs.toFixed(0)} ms · total {capture.ocr.timings.totalMs.toFixed(0)} ms.</p>}
     <RegionDiagnostics key={capture.original} original={capture.original} baseline={capture.ocr} />
-    <p>ASOCIACIÓN: <strong>NOT_IMPLEMENTED</strong>. El texto no modifica geometría, medidas ni modelo paramétrico.</p>
-    <p>Medidas: ancho, diámetros y grosor proceden exclusivamente de respuestas manuales. Altura y centros se derivan de píxeles y escala. No se lee la cota vertical.</p>
+    <h3>INTERPRETACIÓN</h3>
+    {!association && <p>ASOCIACIÓN: esperando geometría y OCR baseline.</p>}
+    {association && <>
+      <p>Las cotas explícitas prevalecen sobre la proporción del croquis. La proporción geométrica solo aporta evidencia secundaria.</p>
+      {association.hypotheses.map((hypothesis) => {
+        const feature = association.features.find((item) => item.id === hypothesis.featureId);
+        return <details key={hypothesis.featureId}>
+          <summary>{hypothesis.featureId}: {hypothesis.status}</summary>
+          <p>Feature: {feature?.kind} · {feature?.subjectKind} · {feature?.property}</p>
+          {hypothesis.candidates.length === 0 && <p>Sin candidatos.</p>}
+          {hypothesis.candidates.map((candidate) => {
+            const annotation = association.annotations.find((item) => item.id === candidate.annotationId);
+            return <div key={candidate.id}>
+              <p>Annotation: "{candidate.rawText}" · bbox {JSON.stringify(annotation?.bbox)} · score OCR {annotation?.score}</p>
+              <p>Candidate: feature {candidate.featureId}{candidate.valueMm ? ` · value ${candidate.valueMm} mm` : ""}</p>
+              <ul>
+                {candidate.evidences.map((evidence, index) => <li key={index}>{evidence.type}: {evidence.status} {"detail" in evidence ? evidence.detail : "relation" in evidence ? `${evidence.relation} (${evidence.normalizedDistance.toFixed(3)})` : ""}</li>)}
+              </ul>
+              <p>Result: {candidate.status}</p>
+            </div>;
+          })}
+        </details>;
+      })}
+    </>}
+    <p>Medidas: ancho/alto pueden proceder de cotas explícitas, confirmación manual o derivación provisional trazable. Agujeros y grosor siguen requiriendo confirmación manual.</p>
     <p>Pendientes: {values.unresolved.join(", ") || "ninguno"}. Modelo {part ? "preparado para confirmar" : "bloqueado"}.</p>
     <pre data-testid="scan-diagnostic-json" style={{ overflow: "auto", maxHeight: "28rem", maxWidth: "100%", fontSize: "12px", textAlign: "left" }}>{JSON.stringify(report, null, 2)}</pre>
   </details>;

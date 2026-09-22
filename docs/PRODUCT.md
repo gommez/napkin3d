@@ -11,10 +11,14 @@ when it is uncertain, and never invents geometry. A part cannot become ready
 for export while required scale, hole dimensions, or thickness remain
 unresolved. The internal parametric model remains the source of truth.
 
-Automatic Mode currently supports the first assisted scanner milestone: one
-rectangular outer contour, zero or more explicit circular through-holes, a user
-reference width, confirmed hole diameters, and user-supplied thickness. The
-result is opened in the existing editable 3D/manual workflow.
+Automatic Mode currently supports the first assisted scanner milestones: one
+rectangular outer contour, zero or more explicit circular through-holes, OCR
+localization/recognition, and V0 association of simple width/height annotations
+to the outer rectangle. Explicit dimensions override sketch proportions: if the
+photo contains `50` above the contour and `30` at its side, the rectangle is
+prepared as 50 × 30 mm instead of forcing the height to match the drawn pixel
+ratio. Hole diameters and thickness still require confirmation. The result is
+opened in the existing editable 3D/manual workflow.
 
 ## First workflow
 

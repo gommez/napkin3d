@@ -6,10 +6,28 @@
 - `Viewer.tsx`: lazy-loaded Three.js renderer, OrbitControls, camera presets and display styles. GPU resources are released on unmount.
 - `export.ts`: pure model-to-SVG and model-to-Three.js/STL adapters. Future serializers should consume Part directly.
 - `storage.ts`: idb wrapper, one atomic versioned workspace document in IndexedDB. Save failures are visible. Project edits are serialized to avoid out-of-order writes.
-- `scanner.ts` and `AutomaticScanner.tsx`: deterministic browser-local preprocessing and assisted interpretation for one rectangular contour and circular holes. The scanner resolves uncertainty through explicit user measurements before creating a `Part`.
+- `scanner.ts` and `AutomaticScanner.tsx`: deterministic browser-local preprocessing and assisted interpretation for one rectangular contour and circular holes. The scanner resolves uncertainty through explicit OCR-derived or user-confirmed measurements before creating a `Part`.
+- `association.ts`: pure, transient evidence engine that maps detected geometry features and OCR annotations into candidate dimensional constraints. V0 functionally supports only outer rectangle width/height, but the core accepts generic features so later adapters can add circles, segments, polygon edges and contour dimensions without replacing the engine.
 - `public/`: manifest, icon and network-first service worker. Visited assets are cached for offline reuse; open the 3D viewer online once before relying on it offline. No first-load offline guarantee.
 
 Photo pixel coordinates become model coordinates through mmPerPixel, anchored at the 2D origin. SVG coordinates are +Y down; Three.js flips Y and extrudes along +Z. Solids are centred as a group before applying explicit part orientation. Camera movement is ephemeral and never persisted as geometry.
+
+Automatic interpretation now follows:
+
+```text
+Image
+→ detected geometry/features
+→ OCR annotations
+→ evidence-based association
+→ resolved geometric constraints
+→ parametric model
+```
+
+Explicit dimensions override sketch proportions. When width and height are both
+read from annotations, they become independent constraints; a single global
+pixel/mm scale must not silently change one explicit value to match the drawn
+ratio. Pixel proportions remain useful as secondary evidence and for provisional
+derived values.
 
 Deployment: Vite base `/napkin3d/`, GitHub Actions validates and uploads `dist`, then deploys with Pages OIDC. Enable Settings → Pages → Source: GitHub Actions. There is no server route dependency.
 

@@ -4,8 +4,9 @@
 
 Implement the zero-cost, browser-local Automatic Scanner milestone on `lab` while preserving GitHub Pages production on `main` and the existing Vercel LAB preview. HOME leads to Automatic Project or Manual Project. Automatic Project is the simplified workflow; Manual Project remains the editor and advanced correction mode.
 
-Assisted raster geometry scanning and local diagnostic OCR are implemented.
-Semantic text-to-dimension association remains NOT_IMPLEMENTED.
+Assisted raster geometry scanning, local diagnostic OCR and ASOCIACIÓN V0 for
+outer rectangle width/height are implemented. Broader text-to-geometry
+association remains limited and diagnostic.
 
 ## Stable production
 
@@ -13,7 +14,7 @@ Semantic text-to-dimension association remains NOT_IMPLEMENTED.
 
 ## Current branch
 
-`lab`. This block changes only the scanner/model/editor/export surfaces and their documentation/tests. `main` was not modified.
+`lab`. Current experimental work stays on `lab`; `main` must remain untouched.
 
 ## Last completed block (historical; latest block at end of file)
 
@@ -379,3 +380,121 @@ acertaba. No son condiciones especiales del producto ni evidencia manuscrita.
 - No decidir asociación semántica ni motor nuevo antes de revisar evidencia.
   ASOCIACIÓN sigue NOT_IMPLEMENTED. No hay éxito manuscrito declarado.
 - STOP: sin commit, push, deploy ni merge. `main` sigue en `3120361`, intacto.
+
+## ASOCIACIÓN V0 — interpretación geométrica de cotas — 2026-09-22
+
+### Objetivo y estado
+
+Implementación terminada en `lab`, sobre `b2cc82c`. La prueba física posterior
+al bloque OCR confirmó contorno rectangular, localización de cotas manuscritas,
+reconocimiento correcto de `50` y `30`, y posiciones conservadas. Este bloque
+añade la primera capa explícita de asociación geometría ↔ OCR para que esas
+cotas puedan resolver ancho/alto del contorno exterior.
+
+Principio registrado: **las cotas explícitas prevalecen sobre las proporciones
+del croquis**. El croquis identifica entidades, relaciones y señales de apoyo;
+no debe convertir silenciosamente `30` en `33.216...` por una escala global.
+
+### Arquitectura introducida
+
+Nuevo módulo puro `src/association.ts`:
+
+```text
+Image
+→ detected geometry/features
+→ OCR annotations
+→ evidence-based association
+→ resolved geometric constraints
+→ parametric model
+```
+
+- `GeometryFeature`: propiedad geométrica medible. El adaptador actual crea
+  `outer-width`, `outer-height` y features de diámetro para agujeros detectados.
+  Solo ancho/alto exterior se resuelven funcionalmente en V0.
+- `Annotation`: OCR bruto con `rawText`, bbox, polígono, score y clasificación.
+  No se corrige texto OCR ni se sustituyen caracteres.
+- `AssociationCandidate`, `Evidence`, `AssociationHypothesis` y
+  `AssociationResult`: candidatos visibles, evidencias independientes,
+  resolución por feature y dimensiones trazables.
+- Evidencias mínimas: semántica, espacial, coherencia geométrica secundaria y
+  score OCR no calibrado. El score no decide por sí solo.
+- Estados: `AUTO_ASSIGNED`, `NEEDS_CONFIRMATION`, `UNRESOLVED`.
+- Orígenes de dimensión: `EXPLICIT`, `DERIVED`, `USER_CONFIRMED`.
+
+`resolveScan` ahora acepta opcionalmente `AssociationResult` y resuelve ancho y
+alto con trazabilidad. Si ambas cotas están explícitas, usa escalas X/Y
+independientes para construir el rectángulo y colocar features relativos; no hay
+escala única que fuerce proporciones. `Part` no persiste la trazabilidad todavía:
+solo se guarda el modelo paramétrico confirmado.
+
+### Comportamiento actual
+
+- Caso físico esperado `50` arriba + `30` izquierda + rectángulo: `outer-width`
+  y `outer-height` quedan `AUTO_ASSIGNED`, origen `EXPLICIT`, valores 50 y 30 mm.
+  La UI ya no pide ancho exterior; muestra 50 × 30 mm y pide el grosor.
+- Si falta la cota vertical, el ancho explícito puede resolver una altura
+  `DERIVED` provisional desde el contorno. Queda distinguida en diagnóstico y UI;
+  no es una cota explícita.
+- Si una cota plausible contradice fuertemente la proporción secundaria, como
+  `50` y `900`, el texto bruto `900` se conserva pero la hipótesis queda
+  `NEEDS_CONFIRMATION`; no se modifica a otro valor.
+- Si dos números compiten por la misma feature, la feature queda
+  `NEEDS_CONFIRMATION`; no se elige arbitrariamente.
+- Si un número está lejos del objeto sin relación espacial clara, queda
+  `UNRESOLVED`.
+- Agujeros, diámetros/radios, triángulos, polígonos y contornos arbitrarios no
+  se reconocen ni se asocian funcionalmente en este bloque. La API acepta
+  features genéricas para preparar futuros adaptadores, pero la app hoy solo
+  reconoce realmente el caso rectangular existente y los agujeros del detector
+  previo.
+
+### Diagnóstico y UX
+
+- `LAB · Diagnóstico temporal` muestra sección `INTERPRETACIÓN` con features,
+  anotaciones, candidatos, evidencias y resultado por feature. El JSON incluye
+  el `AssociationResult` completo.
+- El resumen del scanner muestra ancho/alto y su origen: cota OCR explícita,
+  confirmado manualmente o derivado provisionalmente.
+- Si ancho/alto quedan autoasignados, los campos manuales correspondientes no
+  bloquean el flujo; el grosor sigue pendiente. Los valores interpretados pueden
+  corregirse después en el editor existente, pero no hay editor táctil nuevo.
+- TEST-002 regional mantiene su propio diagnóstico A/B y su asociación interna
+  como `NOT_IMPLEMENTED`; el nuevo bloque consume el OCR baseline actual como
+  input.
+
+### Verificación
+
+- `npm test`: PASS, 6 archivos / 52 pruebas. Incluye normalización espacial,
+  creación de features, generación de candidatos, evidencias semánticas y
+  espaciales, coherencia geométrica, casos A-E, resolución, conflictos,
+  trazabilidad, texto OCR bruto inmutable, y una feature genérica no rectangular.
+- `npm run lint`: PASS.
+- `npm run build`: PASS, strict TypeScript; continúan los avisos existentes de
+  chunks >500 kB y externalización `fs/path/crypto` de OpenCV.js.
+- `CI=1 npm run test:e2e`: PASS, 6 pruebas Chromium móvil. El primer intento no
+  pudo arrancar el webServer dentro del sandbox aunque la build pasó; ejecución
+  autorizada fuera del sandbox pasó. TEST-002 sintético siguió funcionando con
+  3 regiones y 18 variantes.
+- `git diff --check`: PASS.
+- `main` no fue modificado y sigue esperado en `3120361`.
+
+### Limitaciones y próxima acción
+
+- ASOCIACIÓN V0 no demuestra soporte de geometría arbitraria. Solo la
+  arquitectura del motor es extensible; las features realmente soportadas hoy
+  son ancho/alto del contorno rectangular exterior.
+- No hay confirmación táctil específica para hipótesis `NEEDS_CONFIRMATION`.
+  En esos casos se usan entradas manuales existentes.
+- La asociación depende de que OCR baseline entregue la anotación y posición
+  correctas. No recupera texto omitido ni corrige OCR.
+- La coherencia geométrica usa tolerancias deliberadamente amplias para croquis
+  manuales; sirve para conflicto/apoyo, no para validar escala exacta.
+- `Photo.mmPerPixel` sigue siendo un único valor heredado del modelo actual,
+  aunque el scanner ya puede usar X/Y independientes para construir la pieza.
+  Esto debe revisarse antes de depender de fotos calibradas desde croquis no
+  dibujados a escala.
+- Siguiente prueba física recomendada: abrir el LAB local en iPhone con el
+  dibujo `50 × 30`, confirmar que solo se pide grosor, revisar `INTERPRETACIÓN`
+  en JSON, verificar que `50` y `30` son `AUTO_ASSIGNED/EXPLICIT`, que la pieza
+  resultante es exactamente 50 × 30 mm y que números alejados no se asignan a
+  grosor ni a otras features.

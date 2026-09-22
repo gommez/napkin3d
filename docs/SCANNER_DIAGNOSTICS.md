@@ -1,10 +1,11 @@
 # LAB temporary scanner diagnostics
 
-Current LAB state: geometry instrumentation plus local PaddleOCR baseline and
-TEST-002 regional calibration. Association remains `NOT_IMPLEMENTED`.
-The physical iPhone TEST-001 localized handwriting but failed transcription;
-TEST-002 physical acceptance is pending. See `TEST_002.md` for the current
-procedure. The geometry pipeline below remains unchanged.
+Current LAB state: geometry instrumentation plus local PaddleOCR baseline,
+TEST-002 regional calibration and ASOCIACIÓN V0 for outer rectangle width/height.
+The physical iPhone follow-up recognized `50` and `30` with positions, enabling
+the first evidence-based association block. TEST-002 regional calibration remains
+available as a diagnostic. See `ASSOCIATION_V0.md` for the current association
+contract. The geometry detector itself remains unchanged.
 
 ## Local TEST-001 procedure
 
@@ -20,7 +21,7 @@ circular hole, horizontal number, vertical number, hole number/Øn and distant
 number. The actual TEST-001 photograph is not supplied in this repository. Its physical
 iPhone outcome is recorded in STATUS.md.
 
-Inspect the original image overlay, component coordinates, OCR and association
+Inspect the original image overlay, component coordinates, OCR, interpretation
 status, reconstructed geometry, pending inputs and full JSON. Blue/gray boxes mark ink
 components, **not text detections**; magenta polygons are baseline OCR detections. Connected strokes can combine letters,
 dimensions and geometry into one component. Labels identify components, not
@@ -44,12 +45,18 @@ change the stored schema. The original photo stays in browser memory only.
    at least 20% of each image axis supplies the outer rectangle. Other roughly
    square, smaller components whose centres lie inside become hole candidates.
    This is not robust contour or circle recognition; text could contaminate it.
-5. OCR is a separate local PaddleOCR stage. Its detections are kept as text,
-   polygon, derived bbox, score and original-image coordinates. Text-to-property
-   association remains `NOT_IMPLEMENTED`; OCR never writes model dimensions.
-6. `resolveScan` accepts only manual width, hole diameters and thickness.
-   Scale = manual width / outer pixel width. Height and hole centres derive
-   from that scale. `partFromScan` creates the model only when resolved.
+5. OCR is a separate local PaddleOCR stage. Its detections are kept as raw text,
+   polygon, derived bbox, score and original-image coordinates.
+6. ASOCIACIÓN V0 converts detected geometry into transient features, OCR output
+   into annotations, and evaluates candidates through semantic, spatial,
+   geometry and OCR evidence. Functionally, only outer width/height can be
+   auto-assigned today. TEST-002 regional OCR keeps its own diagnostic result and
+   still does not become geometry by itself.
+7. `resolveScan` combines explicit association dimensions and user answers.
+   Width and height can have independent origins. If both are explicit, no single
+   scale rewrites one to match the sketch. Derived values are labelled as
+   `DERIVED`; user entries are `USER_CONFIRMED`. Hole centres still use the
+   resolved X/Y scales, while hole diameters and thickness require confirmation.
    The read-only diagnostic displays that same prepared Part, including IDs.
 
 JPEG quality 0.85 is used for the photo attached to the part, after the canvas
@@ -59,10 +66,11 @@ baseline text regions from the original image for local OCR variants.
 ## Validation boundary / next decision
 
 Synthetic unit fixtures verify trace preservation, rejected components,
-geometry failure visibility and unresolved/model values. Mobile Chromium E2E
-checks diagnostic UI and the existing workflows. Neither proves OCR recognition
-of a real photo. The later physical TEST-001 failed handwritten transcription; see STATUS.md.
+geometry failure visibility, association evidence and unresolved/model values.
+Mobile Chromium E2E checks diagnostic UI and existing workflows. Automated tests
+still do not prove broad handwritten OCR quality.
 
-Next: run the physical TEST-002 protocol in TEST_002.md. Recognition with positional
-output must be validated before dimension association is designed.
-Distant-number-to-thickness inference remains deferred.
+Next: physically verify ASOCIACIÓN V0 on iPhone with the known `50 × 30` sketch:
+check that `50` maps to outer width, `30` maps to outer height, only thickness is
+requested, and no distant number becomes thickness. Distant-number-to-thickness
+inference remains deferred.

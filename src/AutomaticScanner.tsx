@@ -9,6 +9,7 @@ import {
 import ScanDiagnostics, { type ScanCapture } from "./ScanDiagnostics";
 import type { Part, Photo } from "./model";
 import { recognizePhoto } from "./ocr";
+import { associationFromScanAndOcr } from "./association";
 
 export default function AutomaticScanner({
   onBack,
@@ -26,10 +27,24 @@ export default function AutomaticScanner({
   });
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState("");
-  const resolution = scan ? resolveScan(scan, answers) : undefined;
+  const association = useMemo(
+    () =>
+      scan && capture?.ocr?.status === "READY"
+        ? associationFromScanAndOcr(scan, capture.ocr.detections, {
+            originalWidth: capture.originalWidth,
+            originalHeight: capture.originalHeight,
+            rasterWidth: capture.width,
+            rasterHeight: capture.height,
+          })
+        : undefined,
+    [scan, capture?.ocr, capture?.originalWidth, capture?.originalHeight, capture?.width, capture?.height],
+  );
+  const resolution = scan ? resolveScan(scan, answers, association) : undefined;
+  const interpretedWidth = resolution?.dimensions.outerWidth;
+  const interpretedHeight = resolution?.dimensions.outerHeight;
 
-  const preparedPart = useMemo(() => scan && resolveScan(scan, answers).ready ? partFromScan(scan, answers) : undefined, [scan, answers]);
-  const diagnostics = capture && <ScanDiagnostics capture={capture} scan={scan} answers={answers} part={preparedPart} error={error} />;
+  const preparedPart = useMemo(() => scan && resolveScan(scan, answers, association).ready ? partFromScan(scan, answers, association) : undefined, [scan, answers, association]);
+  const diagnostics = capture && <ScanDiagnostics capture={capture} scan={scan} answers={answers} association={association} part={preparedPart} error={error} />;
 
   async function process(file?: File) {
     if (!file) return;
@@ -133,7 +148,7 @@ export default function AutomaticScanner({
         {diagnostics}
         <div className="scan-summary">
           <strong>
-            {resolution!.outer.width * resolution!.scaleMmPerPixel!} × {resolution!.outer.height * resolution!.scaleMmPerPixel!} mm
+            {formatMm(resolution!.dimensions.outerWidth!.valueMm)} × {formatMm(resolution!.dimensions.outerHeight!.valueMm)} mm
           </strong>
           <span>Grosor: {resolution!.thicknessMm} mm</span>
           <span>{resolution!.holes.length} agujero(s)</span>
@@ -149,7 +164,7 @@ export default function AutomaticScanner({
               data: image!,
               width: scan.imageWidth,
               height: scan.imageHeight,
-              mmPerPixel: resolution!.scaleMmPerPixel!,
+              mmPerPixel: resolution!.scaleMmPerPixel ?? resolution!.scaleXMmPerPixel!,
               opacity: 0.55,
             };
             onComplete(part, sourceImage);
@@ -205,18 +220,40 @@ export default function AutomaticScanner({
         ))}
       </svg>
       <p className="hint">Contorno exterior detectado. Los círculos marcados necesitan confirmación.</p>
+      <div className="scan-summary">
+        <strong>
+          {interpretedWidth ? formatMm(interpretedWidth.valueMm) : "Ancho pendiente"} × {interpretedHeight ? formatMm(interpretedHeight.valueMm) : "Alto pendiente"}
+        </strong>
+        {interpretedWidth && <span>Ancho: {sourceLabel(interpretedWidth.origin)}</span>}
+        {interpretedHeight && <span>Alto: {sourceLabel(interpretedHeight.origin)}</span>}
+      </div>
       <div className="scan-fields">
-        <label>
-          Ancho exterior (mm)
-          <input
-            type="number"
-            min="0.1"
-            step="any"
-            inputMode="decimal"
-            value={answers.referenceWidthMm ?? ""}
-            onChange={(e) => updateAnswers({ referenceWidthMm: e.target.valueAsNumber })}
-          />
-        </label>
+        {interpretedWidth?.origin !== "EXPLICIT" && (
+          <label>
+            Ancho exterior (mm)
+            <input
+              type="number"
+              min="0.1"
+              step="any"
+              inputMode="decimal"
+              value={answers.referenceWidthMm ?? ""}
+              onChange={(e) => updateAnswers({ referenceWidthMm: e.target.valueAsNumber })}
+            />
+          </label>
+        )}
+        {association && !association.dimensions["outer-height"] && (
+          <label>
+            Alto exterior (mm)
+            <input
+              type="number"
+              min="0.1"
+              step="any"
+              inputMode="decimal"
+              value={answers.outerHeightMm ?? ""}
+              onChange={(e) => updateAnswers({ outerHeightMm: e.target.valueAsNumber })}
+            />
+          </label>
+        )}
         {scan.holes.map((hole, index) => (
           <label key={hole.id}>
             Diámetro del agujero {index + 1} (mm)
@@ -262,4 +299,14 @@ export default function AutomaticScanner({
       </button>
     </main>
   );
+}
+
+function formatMm(value: number) {
+  return `${Number(value.toFixed(3))} mm`;
+}
+
+function sourceLabel(origin: "EXPLICIT" | "DERIVED" | "USER_CONFIRMED") {
+  if (origin === "EXPLICIT") return "cota OCR explícita";
+  if (origin === "USER_CONFIRMED") return "confirmado manualmente";
+  return "derivado provisionalmente de la geometría";
 }

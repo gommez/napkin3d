@@ -1,10 +1,12 @@
 # Selección OCR local — investigación, 2026-09-18
 
-Estado: piloto aprobado e integrado en `lab`. La asociación semántica sigue sin implementarse.
+Estado: piloto aprobado e integrado en `lab`. ASOCIACIÓN V0 existe después del
+OCR como capa separada; OCR sigue sin modificar geometría por sí mismo.
 Rama `lab`, commit `a198d49`; cambios de diagnóstico anteriores conservados.
 Documento de investigación histórica; el piloto posterior está integrado.
 TEST-001 físico en iPhone localizó regiones pero falló transcripción manuscrita.
-TEST-002 implementado, pendiente de prueba física: véase TEST_002.md.
+TEST-002 implementado, pendiente de prueba física: véase TEST_002.md. La
+asociación posterior se documenta en ASSOCIATION_V0.md.
 
 ## Recomendación
 
@@ -170,7 +172,7 @@ memoria de compilación elevada en este entorno.
 
 ## Decisión vigente
 
-PaddleOCR.js 0.4.2 + PP-OCRv6 tiny se mantiene para TEST-002 por decisión
-registrada en STATUS.md. La selección propuesta en la investigación anterior
-ya fue resuelta. No cambiar motor, diccionario ni modelo; no implementar
-asociación dimensional. La aceptación manuscrita de TEST-002 queda pendiente.
+PaddleOCR.js 0.4.2 + PP-OCRv6 tiny se mantiene. La selección propuesta en la
+investigación anterior ya fue resuelta. No cambiar motor, diccionario ni modelo.
+ASOCIACIÓN V0 consume el OCR como input separado; no modifica reconocimiento,
+diccionarios ni modelos.

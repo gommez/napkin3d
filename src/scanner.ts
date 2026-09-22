@@ -1,4 +1,5 @@
 import { newPart, type Part } from "./model";
+import type { AssociationResult, DimensionTrace } from "./association";
 
 export type DetectionState =
   | "DETECTED"
@@ -28,6 +29,7 @@ export type ScanResult = {
 
 export type ScanAnswers = {
   referenceWidthMm?: number;
+  outerHeightMm?: number;
   thicknessMm?: number;
   holeDiametersMm: Record<string, number | undefined>;
 };
@@ -35,7 +37,13 @@ export type ScanAnswers = {
 export type ScanResolution = {
   ready: boolean;
   scaleMmPerPixel?: number;
+  scaleXMmPerPixel?: number;
+  scaleYMmPerPixel?: number;
   outer: RectPixels & { state: DetectionState };
+  dimensions: {
+    outerWidth?: DimensionTrace;
+    outerHeight?: DimensionTrace;
+  };
   holes: (HolePixels & {
     diameterMm?: number;
     state: DetectionState;
@@ -227,11 +235,47 @@ export function scanRaster(
 export function resolveScan(
   scan: ScanResult,
   answers: ScanAnswers,
+  association?: AssociationResult,
 ): ScanResolution {
-  const scale =
+  const userWidth =
     answers.referenceWidthMm && answers.referenceWidthMm > 0
-      ? answers.referenceWidthMm / scan.outer.width
+      ? answers.referenceWidthMm
       : undefined;
+  const userHeight =
+    answers.outerHeightMm && answers.outerHeightMm > 0
+      ? answers.outerHeightMm
+      : undefined;
+  const explicitWidth = association?.dimensions["outer-width"];
+  const explicitHeight = association?.dimensions["outer-height"];
+  const widthTrace =
+    userWidth !== undefined
+      ? manualTrace(userWidth, "outer-width")
+      : explicitWidth;
+  const widthScale = widthTrace?.valueMm
+    ? widthTrace.valueMm / scan.outer.width
+    : undefined;
+  const heightTrace =
+    userHeight !== undefined
+      ? manualTrace(userHeight, "outer-height")
+      : explicitHeight ??
+        (widthScale
+          ? {
+              valueMm: scan.outer.height * widthScale,
+              origin: "DERIVED" as const,
+              state: "NEEDS_CONFIRMATION" as const,
+              featureId: "outer-height",
+              evidences: [
+                {
+                  type: "geometry" as const,
+                  status: "neutral" as const,
+                  detail: "derived from width scale because no explicit height was resolved",
+                },
+              ],
+            }
+          : undefined);
+  const heightScale = heightTrace?.valueMm
+    ? heightTrace.valueMm / scan.outer.height
+    : undefined;
   const holes = scan.holes.map((hole) => {
     const diameterMm = answers.holeDiametersMm[hole.id];
     return {
@@ -251,28 +295,56 @@ export function resolveScan(
       ? answers.thicknessMm
       : undefined;
   return {
-    ready: Boolean(scale && thicknessMm && holes.every((hole) => hole.diameterMm)),
-    scaleMmPerPixel: scale,
+    ready: Boolean(widthTrace?.valueMm && heightTrace?.valueMm && thicknessMm && holes.every((hole) => hole.diameterMm)),
+    scaleMmPerPixel: widthScale,
+    scaleXMmPerPixel: widthScale,
+    scaleYMmPerPixel: heightScale,
     outer: {
       ...scan.outer,
-      state: scale ? "USER_CONFIRMED" : "NEEDS_CONFIRMATION",
+      state: widthTrace?.valueMm && heightTrace?.valueMm ? "USER_CONFIRMED" : "NEEDS_CONFIRMATION",
+    },
+    dimensions: {
+      outerWidth: widthTrace,
+      outerHeight: heightTrace,
     },
     holes,
     thicknessMm,
   };
 }
 
+function manualTrace(valueMm: number, featureId: "outer-width" | "outer-height"): DimensionTrace {
+  return {
+    valueMm,
+    origin: "USER_CONFIRMED",
+    state: "AUTO_ASSIGNED",
+    featureId,
+    evidences: [
+      {
+        type: "semantic",
+        status: "compatible",
+        detail: "entered manually by the user",
+      },
+    ],
+  };
+}
+
 export function partFromScan(
   scan: ScanResult,
   answers: ScanAnswers,
+  associationOrName?: AssociationResult | string,
   name = "Automatic part",
 ): Part {
-  const resolution = resolveScan(scan, answers);
-  if (!resolution.ready || !resolution.scaleMmPerPixel || !resolution.thicknessMm)
+  const association =
+    typeof associationOrName === "string" ? undefined : associationOrName;
+  const partName =
+    typeof associationOrName === "string" ? associationOrName : name;
+  const resolution = resolveScan(scan, answers, association);
+  if (!resolution.ready || !resolution.scaleXMmPerPixel || !resolution.scaleYMmPerPixel || !resolution.thicknessMm || !resolution.dimensions.outerWidth || !resolution.dimensions.outerHeight)
     throw new Error("La pieza aún necesita información para estar lista.");
-  const part = newPart("automatic", name);
+  const part = newPart("automatic", partName);
   const outerId = crypto.randomUUID();
-  const scale = resolution.scaleMmPerPixel;
+  const scaleX = resolution.scaleXMmPerPixel;
+  const scaleY = resolution.scaleYMmPerPixel;
   part.depth = resolution.thicknessMm;
   part.entities = [
     {
@@ -280,14 +352,14 @@ export function partFromScan(
       type: "rectangle",
       x: 0,
       y: 0,
-      width: scan.outer.width * scale,
-      height: scan.outer.height * scale,
+      width: resolution.dimensions.outerWidth.valueMm,
+      height: resolution.dimensions.outerHeight.valueMm,
     },
     ...resolution.holes.map((hole) => ({
       id: crypto.randomUUID(),
       type: "hole" as const,
-      x: (hole.x - scan.outer.x) * scale,
-      y: (hole.y - scan.outer.y) * scale,
+      x: (hole.x - scan.outer.x) * scaleX,
+      y: (hole.y - scan.outer.y) * scaleY,
       diameter: hole.diameterMm!,
       outerId,
     })),

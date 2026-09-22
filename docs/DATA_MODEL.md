@@ -19,6 +19,13 @@ Hole { id, type: 'hole', x, y, diameter, outerId }
 
 All geometry coordinates and extrusion depth are mm. Rectangle x/y is its upper-left corner; circle x/y is its centre. Dimensions and depth are positive. IDs are UUIDs, dates ISO timestamps. Every part belongs to a folder in its project. Geometry, source image and calibration persist together; viewport, selection, camera and undo history do not persist.
 
+Automatic association metadata is not persisted in the document schema. During
+the scanner flow, interpreted dimensions carry transient trace data: value,
+origin (`EXPLICIT`, `DERIVED`, `USER_CONFIRMED`), resolution state, source
+feature, source annotation/raw OCR text and evidence. Only the resulting `Part`
+is stored after confirmation. Introduce an explicit migration before persisting
+association traces.
+
 `Circle` remains an additive solid for backward compatibility. `Hole` is an
 explicit subtractive circular through-hole linked to one rectangle by
 `outerId`; it is preserved by persistence, editing, 2D rendering, 3D rendering

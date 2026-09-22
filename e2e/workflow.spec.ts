@@ -207,7 +207,7 @@ test("automatic scanner resolves a rectangular part with a circular hole", async
   await expect.poll(async () => JSON.parse((await diagnostic.textContent())!).ocr.status, { timeout: 60000 }).toMatch(/READY|ERROR/);
   let report = JSON.parse((await diagnostic.textContent())!);
   expect(["READY", "ERROR"]).toContain(report.ocr.status);
-  expect(report.association).toBe("NOT_IMPLEMENTED");
+  expect(report.association.status).toMatch(/READY|NOT_READY/);
   expect(report.unresolved).toContain("thicknessMm");
   expect(report.parametricModel).toBeNull();
   await expect(page.getByRole("img", { name: "Diagnóstico sobre fotografía original" })).toBeVisible();
@@ -369,7 +369,7 @@ test("local PaddleOCR returns text detections with positions for a printed synth
   expect(report.ocr.coordinateSpace).toBe("original-image-pixels");
   expect(report.ocr.detections.length).toBeGreaterThan(0);
   expect(report.ocr.detections.every((d: { bbox: { width: number; height: number }; polygon: unknown[]; text: string }) => d.text && d.bbox.width > 0 && d.bbox.height > 0 && d.polygon.length >= 4)).toBeTruthy();
-  expect(report.association).toBe("NOT_IMPLEMENTED");
+  expect(report.association.status).toBe("READY");
   await page.getByRole("button", { name: "Ejecutar TEST-002", exact: true }).click();
   const regionsJson = page.getByTestId("ocr-regions-json");
   await expect.poll(async () => {
